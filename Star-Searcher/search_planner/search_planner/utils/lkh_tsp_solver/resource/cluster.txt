@@ -1,11 +1,21 @@
-NAME : single_frontier.221.tour
-COMMENT : Length = 221
-COMMENT : Found by LKH [Keld Helsgaun] Wed Oct  9 15:32:11 2024
+NAME : single_frontier.1805.tour
+COMMENT : Length = 1805
+COMMENT : Found by LKH [Keld Helsgaun] Sun Mar  2 23:22:23 2025
 TYPE : TOUR
-DIMENSION : 3
+DIMENSION : 13
 TOUR_SECTION
 1
+13
+12
+11
+9
+10
+7
+8
+5
 2
+4
+6
 3
 -1
 EOF
