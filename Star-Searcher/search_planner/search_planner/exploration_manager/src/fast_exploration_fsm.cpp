@@ -42,6 +42,9 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   fd_->cmd.trajectory_flag =
       quadrotor_msgs::PositionCommand::TRAJECTORY_STATUS_READY;
 
+  tag_poses.clear();
+  tf_listener_ptr_ = std::unique_ptr<tf2_ros::TransformListener>(new tf2_ros::TransformListener(tf_buffer_));
+
   /* Ros sub, pub and timer */
   exec_timer_ = nh.createTimer(ros::Duration(0.01),
                                &FastExplorationFSM::FSMCallback, this);
@@ -49,6 +52,8 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
                                  &FastExplorationFSM::safetyCallback, this);
   frontier_timer_ = nh.createTimer(ros::Duration(0.3),
                                    &FastExplorationFSM::frontierCallback, this);
+  tag_timer_ = nh.createTimer(ros::Duration(0.5),
+                                   &FastExplorationFSM::tagCallback, this);                                
 
   trigger_sub_ = nh.subscribe("/waypoint_generator/waypoints", 1,
                               &FastExplorationFSM::triggerCallback, this);
@@ -424,6 +429,53 @@ void FastExplorationFSM::frontierCallback(const ros::TimerEvent &e) {
     // sensor_msgs::PointCloud2::Ptr cloud_msg(new sensor_msgs::PointCloud2);
     // pcl::toROSMsg(cloud, *cloud_msg);
   }
+}
+
+void FastExplorationFSM::tagCallback(const ros::TimerEvent &e) {
+  // 定义要监听的 AprilTag 名称范围（apriltag_0 到 apriltag_7）
+    const int num_tags = 8;
+    for (int tag_id = 0; tag_id < num_tags; ++tag_id) {
+        std::string tag_frame = "apriltag_" + std::to_string(tag_id);
+        std::string target_frame = "world";
+
+        try {
+            // 获取从 world 到 tag 的变换（时间戳为最新可用）
+            geometry_msgs::TransformStamped transform = 
+                tf_buffer_.lookupTransform(
+                    target_frame, 
+                    tag_frame,
+                    ros::Time(0)  // 获取最新可用的变换
+                );
+
+            // 更新位姿数据
+            tag_poses[tag_id] = transform;
+        } catch (tf2::TransformException &ex) {
+            // 处理异常（例如标签未检测到）
+            ROS_WARN("Failed to get transform for %s: %s", 
+                tag_frame.c_str(), ex.what());
+            continue;
+        }
+    }
+    // 统一打印当前检测到的所有标签位姿
+    ROS_INFO("===== Current AprilTag Poses in World Frame =====");
+    for (const auto& pair : tag_poses) {
+        int tag_id = pair.first;
+        const geometry_msgs::TransformStamped& transform = pair.second;
+        ROS_INFO_STREAM(
+            "[Tag " << tag_id << "]\n"
+            << "  Position:    [" 
+            << transform.transform.translation.x << ", "
+            << transform.transform.translation.y << ", "
+            << transform.transform.translation.z << "]\n"
+            << "  Orientation: ["
+            << transform.transform.rotation.x << ", "
+            << transform.transform.rotation.y << ", "
+            << transform.transform.rotation.z << ", "
+            << transform.transform.rotation.w << "]"
+        );
+    }
+    ROS_INFO("================================================\n");
+    return;
 }
 
 void FastExplorationFSM::triggerCallback(const nav_msgs::PathConstPtr &msg) {

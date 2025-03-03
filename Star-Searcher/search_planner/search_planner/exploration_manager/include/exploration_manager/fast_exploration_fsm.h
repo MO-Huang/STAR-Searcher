@@ -8,6 +8,9 @@
 #include <ros/ros.h>
 #include <std_msgs/Empty.h>
 #include <visualization_msgs/Marker.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <apriltag_ros/AprilTagDetectionArray.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <algorithm>
 #include <iostream>
@@ -54,9 +57,13 @@ private:
 
   bool classic_;
 
+  std::map<int, geometry_msgs::TransformStamped> tag_poses;
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener_ptr_;
+  tf2_ros::Buffer tf_buffer_;
+
   /* ROS utils */
   ros::NodeHandle node_;
-  ros::Timer exec_timer_, safety_timer_, vis_timer_, frontier_timer_;
+  ros::Timer exec_timer_, safety_timer_, vis_timer_, frontier_timer_, tag_timer_;
   ros::Subscriber trigger_sub_, odom_sub_;
   ros::Publisher replan_pub_, new_pub_, bspline_pub_, spiral_pub_;
   ros::Publisher start_flag_pub; //发布比赛开始相关标志，及是否接收到trigger
@@ -69,6 +76,7 @@ private:
   void FSMCallback(const ros::TimerEvent &e);
   void safetyCallback(const ros::TimerEvent &e);
   void frontierCallback(const ros::TimerEvent &e);
+  void tagCallback(const ros::TimerEvent &e);
   void triggerCallback(const nav_msgs::PathConstPtr &msg);
   void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
   void visualize();
