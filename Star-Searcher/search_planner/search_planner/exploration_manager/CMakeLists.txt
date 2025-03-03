@@ -86,7 +86,10 @@ target_link_libraries(simple_control_demo
   ${catkin_LIBRARIES}
 )
 
-
+add_executable(apriltag_world_pose_listener src/apriltag_world_pose_listener.cpp)
+target_link_libraries(apriltag_world_pose_listener
+  ${catkin_LIBRARIES}
+)
 
 catkin_install_python(PROGRAMS
   src/keyboard_control.py
