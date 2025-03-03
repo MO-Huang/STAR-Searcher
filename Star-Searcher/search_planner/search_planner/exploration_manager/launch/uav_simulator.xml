@@ -29,8 +29,8 @@
       <arg name="yaw" value="0.0"/>
     </include>
     
-    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="log"/>
-    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" output="log"/>
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen"/>
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" output="screen"/>
   </group>
 
 

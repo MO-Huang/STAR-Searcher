@@ -52,7 +52,7 @@
   </include>
 
   <!-- trajectory server -->
-  <node pkg="plan_manage" name="traj_server" type="traj_server" output="log">
+  <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
     <remap from="/position_cmd" to="planning/pos_cmd" />
 
     <remap from="/odom_world" to="$(arg odom_topic)" />
@@ -70,7 +70,7 @@
 
   </node>
 
-  <node pkg="exploration_manager" name="gazebo_control" type="gazebo_control" output="log">
+  <node pkg="exploration_manager" name="gazebo_control" type="gazebo_control" output="screen">
     <param name="init_x" value="$(arg init_x)" />
     <param name="init_y" value="$(arg init_y)" />
     <param name="init_z" value="$(arg init_z)" />
@@ -79,13 +79,13 @@
 
   <!-- sensor_pose_trans -->
   <node pkg="sensor_pose_trans" type="sensor_pose_trans_node" name="sensor_pose_trans_node"
-    output="log">
+    output="screen">
     <param name="estimation_rate" value="30.0" />
     <remap from="~odometry" to="$(arg odom_topic)" />
   </node>
 
 
-  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="log">
+  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
     <remap from="~odom" to="$(arg odom_topic)" />
     <remap from="~goal" to="/move_base_simple/goal" />
     <remap from="~traj_start_trigger" to="/traj_start_trigger" />
