@@ -1,0 +1,7 @@
+<launch>
+
+  <arg name="world_name" default="$(find fuae_gazebo)/worlds/laboratory.world" />
+  <include file="$(find exploration_manager)/launch/env_simulator.xml">
+      <arg name="world_name" value="$(arg world_name)"  />
+  </include>
+</launch>
