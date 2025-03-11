@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(PCL REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(gazebo REQUIRED)
 
 catkin_package()
 
@@ -22,9 +23,13 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${PCL_INCLUDE_DIRS}
+  ${GAZEBO_INCLUDE_DIRS}
 )
 
 add_executable (random_obstacle src/random_obstacle.cpp )
 target_link_libraries(random_obstacle
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES})
+
+add_library(DoorControlPlugin SHARED src/DoorControlPlugin.cc)
+target_link_libraries(DoorControlPlugin ${GAZEBO_LIBRARIES} ${catkin_LIBRARIES})
