@@ -22,6 +22,7 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   nh.param("fsm/thresh_replan2", fp_->replan_thresh2_, -1.0);
   nh.param("fsm/thresh_replan3", fp_->replan_thresh3_, -1.0);
   nh.param("fsm/replan_time", fp_->replan_time_, -1.0);
+  nh.param("fsm/show_tag", fp_->show_tag, false);
 
   /* Initialize main modules */
   expl_manager_.reset(new FastExplorationManager);
@@ -451,30 +452,33 @@ void FastExplorationFSM::tagCallback(const ros::TimerEvent &e) {
             tag_poses[tag_id] = transform;
         } catch (tf2::TransformException &ex) {
             // 处理异常（例如标签未检测到）
-            ROS_WARN("Failed to get transform for %s: %s", 
-                tag_frame.c_str(), ex.what());
+            // ROS_WARN("Failed to get transform for %s: %s", 
+            //     tag_frame.c_str(), ex.what());
             continue;
         }
     }
-    // 统一打印当前检测到的所有标签位姿
-    ROS_INFO("===== Current AprilTag Poses in World Frame =====");
-    for (const auto& pair : tag_poses) {
-        int tag_id = pair.first;
-        const geometry_msgs::TransformStamped& transform = pair.second;
-        ROS_INFO_STREAM(
-            "[Tag " << tag_id << "]\n"
-            << "  Position:    [" 
-            << transform.transform.translation.x << ", "
-            << transform.transform.translation.y << ", "
-            << transform.transform.translation.z << "]\n"
-            << "  Orientation: ["
-            << transform.transform.rotation.x << ", "
-            << transform.transform.rotation.y << ", "
-            << transform.transform.rotation.z << ", "
-            << transform.transform.rotation.w << "]"
-        );
+    if(fp_->show_tag)
+    {
+      // 统一打印当前检测到的所有标签位姿
+      ROS_INFO("===== Current AprilTag Poses in World Frame =====");
+      for (const auto& pair : tag_poses) {
+          int tag_id = pair.first;
+          const geometry_msgs::TransformStamped& transform = pair.second;
+          ROS_INFO_STREAM(
+              "[Tag " << tag_id << "]\n"
+              << "  Position:    [" 
+              << transform.transform.translation.x << ", "
+              << transform.transform.translation.y << ", "
+              << transform.transform.translation.z << "]\n"
+              << "  Orientation: ["
+              << transform.transform.rotation.x << ", "
+              << transform.transform.rotation.y << ", "
+              << transform.transform.rotation.z << ", "
+              << transform.transform.rotation.w << "]"
+          );
+      }
+      ROS_INFO("================================================\n");
     }
-    ROS_INFO("================================================\n");
     return;
 }
 
