@@ -57,3 +57,10 @@ add_executable(obj_generator
     )
 target_link_libraries(obj_generator 
     ${catkin_LIBRARIES})
+
+add_executable(semantic_rx
+    src/semantic_rx.cpp 
+    )
+target_link_libraries(semantic_rx 
+    ${catkin_LIBRARIES}
+    ${PCL_LIBRARIES})
