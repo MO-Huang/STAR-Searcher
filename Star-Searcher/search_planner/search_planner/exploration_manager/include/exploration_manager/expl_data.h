@@ -33,6 +33,7 @@ struct FSMParam {
   double replan_thresh2_;
   double replan_thresh3_;
   double replan_time_; // second
+  bool show_tag;
 };
 
 struct ExplorationData {
