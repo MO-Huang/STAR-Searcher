@@ -356,9 +356,9 @@ void GazeboRosVelodyneLaser::OnScan(ConstLaserScanStampedPtr& _msg)
       std::string collision_name;
       collision_name = parent_ray_sensor_->LaserShape()->Ray(i + j * rangeCount)->CollisionName();
       int semantic_label = 0;
-      if(collision_name.compare("add_wall3::Wall_9::Wall_9_Collision") == 0)
+      std::string interested_object = "door::collision";
+      if(collision_name.find(interested_object) != std::string::npos)
       {
-        std::cout<< "current iter = " << i + j * rangeCount  << ", add_wall3::Wall_9::Wall_9_Collision" << std::endl;
         semantic_label = 1;
       }
 
