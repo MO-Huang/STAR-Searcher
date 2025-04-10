@@ -63,12 +63,18 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   md_->occupancy_buffer_ =
       vector<double>(buffer_size, mp_->clamp_min_log_ - mp_->unknown_flag_);
   md_->occupancy_buffer_inflate_ = vector<char>(buffer_size, 0);
+  md_->semantic_occupancy_buffer_ =
+      vector<double>(buffer_size, mp_->clamp_min_log_ - mp_->unknown_flag_);
+  md_->semantic_occupancy_buffer_inflate_ = vector<char>(buffer_size, 0);
   md_->min_observed_dist_ = vector<double>(buffer_size, 20.0);
   md_->distance_buffer_neg_ = vector<double>(buffer_size, mp_->default_dist_);
   md_->distance_buffer_ = vector<double>(buffer_size, mp_->default_dist_);
   md_->count_hit_and_miss_ = vector<short>(buffer_size, 0);
   md_->count_hit_ = vector<short>(buffer_size, 0);
   md_->count_miss_ = vector<short>(buffer_size, 0);
+  md_->semantic_count_hit_and_miss_ = vector<short>(buffer_size, 0);
+  md_->semantic_count_hit_ = vector<short>(buffer_size, 0);
+  md_->semantic_count_miss_ = vector<short>(buffer_size, 0);
   md_->flag_rayend_ = vector<char>(buffer_size, -1);
   md_->flag_visited_ = vector<char>(buffer_size, -1);
   md_->tmp_buffer1_ = vector<double>(buffer_size, 0);
@@ -271,6 +277,18 @@ void SDFMap::setCacheOccupancy(const int &adr, const int &occ) {
     md_->count_miss_[adr] += 1;
   else
     md_->count_hit_[adr] += 1;
+}
+
+void SDFMap::setCacheSemanticOccupancy(const int &adr, const int &occ) {
+  // Add to update list if first visited
+
+  if (md_->semantic_count_hit_[adr] == 0 && md_->semantic_count_miss_[adr] == 0)
+    md_->cache_semantic_voxel_.push(adr);
+
+  if (occ == 0)
+    md_->semantic_count_miss_[adr] += 1;
+  else
+    md_->semantic_count_hit_[adr] += 1;
 }
 
 void SDFMap::inputPointCloud(const pcl::PointCloud<pcl::PointXYZ> &points,
@@ -482,6 +500,145 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
   }
 }
 
+void SDFMap::inputCamLidarSemanticPointCloud(const Eigen::MatrixXd &points,
+                                             const Eigen::MatrixXd &pts_uv,
+                                             const Eigen::MatrixXd &lidar_pts,
+                                             const Eigen::Vector3d &lidar_pos, 
+                                             const Eigen::VectorXi &semantic_label) {
+  md_->raycast_num_ += 1;
+  Eigen::Vector3d update_min = lidar_pos;
+  Eigen::Vector3d update_max = lidar_pos;
+  if (md_->reset_updated_box_) {
+    md_->update_min_ = lidar_pos;
+    md_->update_max_ = lidar_pos;
+    md_->reset_updated_box_ = false;
+  }
+
+  Eigen::Vector3d pt_w, tmp;
+  Eigen::Vector3i idx;
+  int vox_adr;
+  double length;
+  int j = points.cols() / 20;
+
+  for (int i = 0; i < points.cols(); ++i) {
+    bool in_cam_view = false;
+    if (pts_uv(0, i) < mr_->cl_cx_ * 2 && pts_uv(1, i) < mr_->cl_cy_ * 2 &&
+        pts_uv(0, i) > 0 && pts_uv(1, i) > 0 && lidar_pts(0, i) > 0.0) {
+      in_cam_view = true;
+    }
+    pt_w << points(0, i), points(1, i), points(2, i);
+    int tmp_flag;
+    // Set flag for projected point
+    if (!isInMap(pt_w)) {
+      // Find closest point in map and set free
+      pt_w = closetPointInMap(pt_w, lidar_pos);
+      length = (pt_w - lidar_pos).norm();
+      tmp_flag = 0; // // Find closest point in map and set free
+      continue;
+    } else {
+      length = (pt_w - lidar_pos).norm();
+      if (length > mp_->max_ray_length_) {
+        pt_w = (pt_w - lidar_pos) / length * mp_->max_ray_length_ + lidar_pos;
+        tmp_flag = 0;
+      } else
+        tmp_flag = 1;
+    }
+    posToIndex(pt_w, idx);
+    vox_adr = toAddress(idx);
+    Eigen::Vector3i tmp_idx = idx;
+    setCacheOccupancy(vox_adr, tmp_flag);
+    if(in_cam_view)
+    {
+      if(semantic_label(i) == 1)
+        setCacheSemanticOccupancy(vox_adr, tmp_flag);
+      else
+        setCacheSemanticOccupancy(vox_adr, 0);
+    }
+    if (isInObstacle(idx)) {
+      setObservedDist(vox_adr, 0.1);
+    }
+
+    if (in_cam_view) {
+      double observed_dist = (pt_w - lidar_pos).norm();
+      setObservedDist(vox_adr, observed_dist);
+    }
+
+    for (int k = 0; k < 3; ++k) {
+      update_min[k] = min(update_min[k], pt_w[k]);
+      update_max[k] = max(update_max[k], pt_w[k]);
+    }
+    // Raycasting between camera center and point
+    if (md_->flag_rayend_[vox_adr] == md_->raycast_num_)
+      continue;
+    else
+      md_->flag_rayend_[vox_adr] = md_->raycast_num_;
+
+    caster_->input(pt_w, lidar_pos);
+    caster_->nextId(idx);
+    while (caster_->nextId(idx)) {
+      // std::cout << "\033[33m current raycasting index is " << idx << "\033[0m" << std::endl;
+      if (in_cam_view) {
+        Eigen::Vector3d p;
+        indexToPos(idx, p);
+        double observed_dist = (p - lidar_pos).norm();
+        setObservedDist(toAddress(idx), observed_dist);
+        setCacheSemanticOccupancy(toAddress(idx), 0);
+      }
+      if (md_->flag_rayend_[toAddress(idx)] == md_->raycast_num_)
+        continue;
+      setCacheOccupancy(toAddress(idx), 0);
+       if (isInObstacle(idx)) {
+        setObservedDist(toAddress(idx), 0.1);
+      }
+    }
+  }
+
+  Eigen::Vector3d bound_inf(mp_->local_bound_inflate_,
+                            mp_->local_bound_inflate_, 0);
+  posToIndex(update_max + bound_inf, md_->local_bound_max_);
+  posToIndex(update_min - bound_inf, md_->local_bound_min_);
+  boundIndex(md_->local_bound_min_);
+  boundIndex(md_->local_bound_max_);
+  mr_->local_updated_ = true;
+
+  // Bounding box for subsequent updating
+  for (int k = 0; k < 3; ++k) {
+    md_->update_min_[k] = min(update_min[k], md_->update_min_[k]);
+    md_->update_max_[k] = max(update_max[k], md_->update_max_[k]);
+  }
+
+  while (!md_->cache_voxel_.empty()) {
+    int adr = md_->cache_voxel_.front();
+    md_->cache_voxel_.pop();
+    double log_odds_update = md_->count_hit_[adr] >= md_->count_miss_[adr]
+                                 ? mp_->prob_hit_log_
+                                 : mp_->prob_miss_log_;
+    md_->count_hit_[adr] = md_->count_miss_[adr] = 0;
+    if (md_->occupancy_buffer_[adr] < mp_->clamp_min_log_ - 1e-3)
+      md_->occupancy_buffer_[adr] = mp_->min_occupancy_log_;
+
+    md_->occupancy_buffer_[adr] =
+        std::min(std::max(md_->occupancy_buffer_[adr] + log_odds_update,
+                          mp_->clamp_min_log_),
+                 mp_->clamp_max_log_);
+  }
+  while (!md_->cache_semantic_voxel_.empty()) {
+    int adr = md_->cache_semantic_voxel_.front();
+    md_->cache_semantic_voxel_.pop();
+    double log_odds_update = md_->semantic_count_hit_[adr] >= md_->semantic_count_miss_[adr]
+                                 ? mp_->prob_hit_log_
+                                 : mp_->prob_miss_log_;
+    md_->semantic_count_hit_[adr] = md_->semantic_count_miss_[adr] = 0;
+    if (md_->semantic_occupancy_buffer_[adr] < mp_->clamp_min_log_ - 1e-3)
+      md_->semantic_occupancy_buffer_[adr] = mp_->min_occupancy_log_;
+
+    md_->semantic_occupancy_buffer_[adr] =
+        std::min(std::max(md_->semantic_occupancy_buffer_[adr] + log_odds_update,
+                          mp_->clamp_min_log_),
+                 mp_->clamp_max_log_);
+  }
+}
+
 void SDFMap::setObservedDist(const int &adr, const double &dist) {
   if (md_->min_observed_dist_[adr] > dist ||
       md_->min_observed_dist_[adr] == 0.0)
@@ -603,6 +760,54 @@ void SDFMap::clearAndInflateLocalMap() {
                                               mp_->map_voxel_num_(1) *
                                               mp_->map_voxel_num_(2)) {
               md_->occupancy_buffer_inflate_[idx_inf] = 1;
+            }
+          }
+        }
+      }
+
+  // add virtual ceiling to limit flight height
+  if (mp_->virtual_ceil_height_ > -0.5) {
+    int ceil_id = floor((mp_->virtual_ceil_height_ - mp_->map_origin_(2)) *
+                        mp_->resolution_inv_);
+    for (int x = md_->local_bound_min_(0); x <= md_->local_bound_max_(0); ++x)
+      for (int y = md_->local_bound_min_(1); y <= md_->local_bound_max_(1);
+           ++y) {
+        // md_->occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+        md_->occupancy_buffer_[toAddress(x, y, ceil_id)] = mp_->clamp_max_log_;
+      }
+  }
+}
+
+void SDFMap::clearAndInflateLocalMapSemantic() {
+  int inf_step = ceil(mp_->obstacles_inflation_ / mp_->resolution_);
+  vector<Eigen::Vector3i> inf_pts(pow(2 * inf_step + 1, 3));
+  // inf_pts.resize(4 * inf_step + 3);
+
+  for (int x = md_->local_bound_min_(0); x <= md_->local_bound_max_(0); ++x)
+    for (int y = md_->local_bound_min_(1); y <= md_->local_bound_max_(1); ++y)
+      for (int z = md_->local_bound_min_(2); z <= md_->local_bound_max_(2);
+           ++z) {
+        md_->occupancy_buffer_inflate_[toAddress(x, y, z)] = 0;
+        md_->semantic_occupancy_buffer_inflate_[toAddress(x, y, z)] = 0;
+      }
+
+  // inflate newest occpuied cells
+  for (int x = md_->local_bound_min_(0); x <= md_->local_bound_max_(0); ++x)
+    for (int y = md_->local_bound_min_(1); y <= md_->local_bound_max_(1); ++y)
+      for (int z = md_->local_bound_min_(2); z <= md_->local_bound_max_(2);
+           ++z) {
+        int id1 = toAddress(x, y, z);
+        if (md_->occupancy_buffer_[id1] > mp_->min_occupancy_log_) {
+          inflatePoint(Eigen::Vector3i(x, y, z), inf_step, inf_pts);
+
+          for (auto inf_pt : inf_pts) {
+            int idx_inf = toAddress(inf_pt);
+            if (idx_inf >= 0 && idx_inf < mp_->map_voxel_num_(0) *
+                                              mp_->map_voxel_num_(1) *
+                                              mp_->map_voxel_num_(2)) {
+              md_->occupancy_buffer_inflate_[idx_inf] = 1;
+              if(md_->semantic_occupancy_buffer_[id1] > mp_->min_occupancy_log_)
+                md_->semantic_occupancy_buffer_inflate_[idx_inf] = 1;
             }
           }
         }

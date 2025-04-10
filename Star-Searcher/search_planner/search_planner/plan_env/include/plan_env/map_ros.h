@@ -39,9 +39,14 @@ private:
   void cameralidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
                            const sensor_msgs::ImageConstPtr &image_rect,
                            const nav_msgs::OdometryConstPtr &pose);
+  void camerasemanticlidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
+                           const sensor_msgs::ImageConstPtr &image_rect,
+                           const nav_msgs::OdometryConstPtr &pose);
   void updateESDFCallback(const ros::TimerEvent & /*event*/);
   void visCallback(const ros::TimerEvent & /*event*/);
   void resultCallback(const ros::TimerEvent &e);
+  void convertPointCloud2ToPclXYZL(const sensor_msgs::PointCloud2& msg, 
+                            pcl::PointCloud<pcl::PointXYZL>& pcl_pc);
   void publishMapAll();
   void publishMapLocal();
   void publishESDF();
@@ -50,9 +55,11 @@ private:
   void publishDepth();
   void publishMinObservedDist();
   void publishUnderObserved();
+  void publishSemantic();
 
   void proessDepthImage();
   void processFusionCloud();
+  void processFusionSemanticCloud();
 
   SDFMap *map_;
   // may use ExactTime?
@@ -85,8 +92,11 @@ private:
 
   ros::Publisher map_local_pub_, map_local_inflate_pub_, esdf_pub_,
       map_all_pub_, unknown_pub_, update_range_pub_, depth_pub_,
-      map_object_pub_, under_observed_pub_, debug_pub_, test_pub_;
+      map_object_pub_, under_observed_pub_, debug_pub_, test_pub_, map_semantic_pub_;
   ros::Timer esdf_timer_, vis_timer_, result_timer_;
+
+  //semantic mode
+  bool semantic_mode;
 
   // Camera, Lidar Fusion
   std::string ptcloud_topic;
@@ -102,8 +112,10 @@ private:
   cv_bridge::CvImagePtr cv_image_;
   tf::StampedTransform transform_;
   std::unique_ptr<pcl::PointCloud<pcl::PointXYZ>> temp_cloud;
+  std::unique_ptr<pcl::PointCloud<pcl::PointXYZL>> temp_semantic_cloud;
   Eigen::Matrix<double, 3, Eigen::Dynamic> world_pts_in_lidar, pixel_uv,
       lidar_pts;
+  Eigen::Matrix<int, Eigen::Dynamic, 1> semantic_label;
 
   // params, depth projection
   double cx_, cy_, fx_, fy_;

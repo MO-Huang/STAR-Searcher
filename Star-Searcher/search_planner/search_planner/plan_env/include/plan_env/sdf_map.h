@@ -40,6 +40,11 @@ public:
                                const Eigen::MatrixXd &pts_uv,
                                const Eigen::MatrixXd &lidar_pts,
                                const Eigen::Vector3d &lidar_pos);
+  void inputCamLidarSemanticPointCloud(const Eigen::MatrixXd &points,
+                                       const Eigen::MatrixXd &pts_uv,
+                                       const Eigen::MatrixXd &lidar_pts,
+                                       const Eigen::Vector3d &lidar_pos,
+                                       const Eigen::VectorXi &semantic_label);
   void inputPointCloud(const pcl::PointCloud<pcl::PointXYZ> &points,
                        const int &point_num, const Eigen::Vector3d &camera_pos);
 
@@ -82,9 +87,11 @@ public:
 
 private:
   void clearAndInflateLocalMap();
+  void clearAndInflateLocalMapSemantic();
   void inflatePoint(const Eigen::Vector3i &pt, int step,
                     vector<Eigen::Vector3i> &pts);
   void setCacheOccupancy(const int &adr, const int &occ);
+  void setCacheSemanticOccupancy(const int &adr, const int &occ);
   void setObservedDist(const int &adr, const double &dist);
   Eigen::Vector3d closetPointInMap(const Eigen::Vector3d &pt,
                                    const Eigen::Vector3d &camera_pt);
@@ -134,6 +141,8 @@ struct MapData {
   // main map data, occupancy of each voxel and Euclidean distance
   std::vector<double> occupancy_buffer_;
   std::vector<char> occupancy_buffer_inflate_;
+  std::vector<double> semantic_occupancy_buffer_;
+  std::vector<char> semantic_occupancy_buffer_inflate_;
   std::vector<double> min_observed_dist_;
   std::vector<double> distance_buffer_neg_;
   std::vector<double> distance_buffer_;
@@ -141,9 +150,11 @@ struct MapData {
   std::vector<double> tmp_buffer2_;
   // data for updating
   vector<short> count_hit_, count_miss_, count_hit_and_miss_;
+  vector<short> semantic_count_hit_, semantic_count_miss_, semantic_count_hit_and_miss_;
   vector<char> flag_rayend_, flag_visited_;
   char raycast_num_;
   queue<int> cache_voxel_;
+  queue<int> cache_semantic_voxel_;
   Eigen::Vector3i local_bound_min_, local_bound_max_;
   Eigen::Vector3d update_min_, update_max_;
   bool reset_updated_box_;
