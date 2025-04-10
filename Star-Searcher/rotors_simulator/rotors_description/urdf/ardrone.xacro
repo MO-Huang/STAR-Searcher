@@ -72,9 +72,16 @@
     <child link="${namespace}/base_lidar_support" />
   </joint>
 
-  <xacro:include filename="$(find rotors_description)/urdf/VLP-16.urdf.xacro" />
+  <!-- <xacro:include filename="$(find rotors_description)/urdf/VLP-16.urdf.xacro" />
   <xacro:VLP-16 namespace="${namespace}" parent="${namespace}/base_lidar_support"  name="velodyne"
     topic="/velodyne_points" hz="30" samples="300" min_range="0.1" organize_cloud="true" gpu="true"
+    support_height="${lidar_support_height}">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:VLP-16> -->
+  
+  <xacro:include filename="$(find rotors_description)/urdf/VLP-16-semantic.urdf.xacro" />
+  <xacro:VLP-16 namespace="${namespace}" parent="${namespace}/base_lidar_support"  name="velodyne"
+    topic="/velodyne_points_semantic" hz="30" samples="300" min_range="0.1" organize_cloud="true" gpu="false"
     support_height="${lidar_support_height}">
     <origin xyz="0 0 0" rpy="0 0 0" />
   </xacro:VLP-16>
