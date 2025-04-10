@@ -87,13 +87,15 @@
     <param name="map_ros/show_esdf_time" value="false" />
     <param name="map_ros/show_all_map" value="true" />
     <param name="map_ros/frame_id" value="world" />
+    <param name="map_ros/semantic_mode" value="true" />
 
     <!-- Camera_Lidar_Fusion-->
     <param name="map_ros/camera_lidar_fusion/fx" type="double" value="1386.4139404296875" />
     <param name="map_ros/camera_lidar_fusion/fy" type="double" value="1386.4139404296875" />
     <param name="map_ros/camera_lidar_fusion/cx" type="double" value="960.0" />
     <param name="map_ros/camera_lidar_fusion/cy" type="double" value="540.0" />
-    <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points" />
+    <!-- <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points" /> -->
+    <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points_semantic" />
     <param name="map_ros/camera_lidar_fusion/image_topic" type="str" value="/camera/color/image_raw" />
     <param name="map_ros/camera_lidar_fusion/lidar_tf_target_frame" type="str" value="world" />
     <param name="map_ros/camera_lidar_fusion/lidar_tf_source_frame" type="str" value="ardrone/velodyne" />
