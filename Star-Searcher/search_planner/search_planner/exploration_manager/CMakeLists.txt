@@ -4,6 +4,8 @@ project(exploration_manager)
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++17")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O2")
+set(CMAKE_C_FLAGS_DEBUG "-g -O2")
 set(CMAKE_CXX_STANDARD 14)
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.7 REQUIRED)
@@ -24,6 +26,7 @@ find_package(catkin REQUIRED COMPONENTS
   plan_manage
   cv_bridge
   tf
+  tuw_multi_robot_router
 )
 
 add_message_files(
@@ -35,7 +38,7 @@ add_message_files(
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES exploration_manager
- CATKIN_DEPENDS plan_env path_searching bspline bspline_opt active_perception traj_utils lkh_tsp_solver plan_manage
+ CATKIN_DEPENDS plan_env path_searching bspline bspline_opt active_perception traj_utils lkh_tsp_solver plan_manage tuw_multi_robot_router
 #  DEPENDS system_lib
 )
 
