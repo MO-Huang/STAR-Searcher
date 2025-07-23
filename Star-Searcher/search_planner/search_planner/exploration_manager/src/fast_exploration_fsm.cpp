@@ -28,13 +28,14 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   expl_manager_.reset(new FastExplorationManager);
   expl_manager_->initialize(nh);
   this->visualization_ = expl_manager_->visualization_;
+  router_ = expl_manager_->router_;
 
   planner_manager_ = expl_manager_->planner_manager_;
   percep_utils_.reset(new PerceptionUtils(nh));
   state_ = EXPL_STATE::INIT;
   fd_->have_odom_ = false;
-  fd_->state_str_ = {"INIT",      "WAIT_TRIGGER", "PLAN_TRAJ", "PUB_TRAJ",
-                     "EXEC_TRAJ", "FINISH",       "SPIRAL"};
+  fd_->state_str_ = {"INIT", "WAIT_TRIGGER", "PLAN_TRAJ", "PUB_TRAJ",
+                     "EXEC_TRAJ", "FINISH", "SPIRAL", "WAIT_FRONTIER", "WAIT_TRAV"};
   fd_->static_state_ = true;
   fd_->trigger_ = false;
   fd_->cmd.kx = {5.7, 5.7, 6.2};
@@ -67,6 +68,15 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   start_flag_pub = nh.advertise<std_msgs::Int32>("/start_flag", 10);
   spiral_pub_ =
       nh.advertise<quadrotor_msgs::PositionCommand>("/planning/pos_cmd", 50);
+
+  std::thread vis_thread([this]() {
+    ros::Rate rate(30);       // 30 Hz 可视化
+    while (ros::ok()) {
+      this->visualize();
+      rate.sleep();
+    }
+  });
+  vis_thread.detach();
 }
 
 void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
@@ -151,7 +161,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
       // thread vis_thread(&FastExplorationFSM::visualize, this);
       // vis_thread.detach();
     } else if (res == NO_FRONTIER) {
-      transitState(FINISH, "FSM");
+      transitState(WAIT_FRONTIER, "FSM");
       fd_->static_state_ = true;
     } else if (res == FAIL) {
       // Still in PLAN_TRAJ state, keep replanning
@@ -183,6 +193,23 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
     //   ROS_WARN("Replan: prepare to spiral");
     //   transitState(SPIRAL, "FSM");
     // }
+    // std::cout << "\033[32mduration_ = " << info->duration_ << ", t_cur = \033[0m" << t_cur << std::endl;
+
+    Eigen::Vector3d pos = fd_->odom_pos_;
+    double yaw = fd_->odom_yaw_;
+    bool reach_goal = (pos - expl_manager_->ed_->next_goal_).norm() < 0.5 && abs(yaw - expl_manager_->ed_->next_yaw_)< 1.0;
+    // std::cout << "\033[32minfo->go_wait_trav_ = " << info->go_wait_trav_ << ", time_to_end = \033[0m" << time_to_end << std::endl;
+    if (info->go_wait_trav_ && reach_goal) {
+      transitState(WAIT_TRAV, "FSM");
+      fd_->static_state_ = true;
+      break;
+    }
+    if (info->go_wait_trav_ && time_to_end < fp_->replan_thresh1_) {
+      ROS_WARN("Reach waiting point for traversability.");
+      transitState(WAIT_TRAV, "FSM");
+      fd_->static_state_ = true;
+      break;
+    }
 
     bool need_replan = false;
     if (time_to_end < fp_->replan_thresh1_) {
@@ -220,10 +247,53 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
 
     break;
   }
+
+  case WAIT_FRONTIER: {
+    state_flag.data = WAIT_FRONTIER;
+    expl_manager_->frontier_finder_->searchFrontiers(fd_->odom_pos_);
+    expl_manager_->frontier_finder_->computeFrontiersToVisit(fd_->odom_pos_);
+    bool neighbor;
+    expl_manager_->frontier_finder_->clusterFrontiers(fd_->odom_pos_, neighbor);
+    expl_manager_->frontier_finder_->getFrontiers(expl_manager_->ed_->frontiers_);
+    if (!(expl_manager_->ed_->frontiers_.empty()))
+      transitState(PLAN_TRAJ, "FSM");
+    break;
   }
 
-  thread vis_thread(&FastExplorationFSM::visualize, this);
-  vis_thread.detach();
+  case WAIT_TRAV: {
+    state_flag.data = WAIT_TRAV;
+    expl_manager_->frontier_finder_->searchFrontiers(fd_->odom_pos_);
+    expl_manager_->frontier_finder_->computeFrontiersToVisit(fd_->odom_pos_);
+    bool neighbor;
+    expl_manager_->frontier_finder_->clusterFrontiers(fd_->odom_pos_, neighbor);
+    vector<Eigen::Vector3d> centers;
+    expl_manager_->frontier_finder_->getClusterCenter(centers);
+    Eigen::Vector3d pos = fd_->odom_pos_;
+    bool traversable = false;
+    planner_manager_->path_finder_->reset();
+    for (auto center : centers) {
+      if(planner_manager_->path_finder_->search(pos, center) == Astar::REACH_END) {
+        traversable = true;
+        printf("\033[32mTured traversable, traversable center:[%f, %f, %f].\033[0m\n", center[0], center[1], center[2]);
+        transitState(PLAN_TRAJ, "FSM");
+        break;
+      }
+    }
+    if(traversable)
+      break;
+    if(planner_manager_->path_finder_->search(pos, expl_manager_->ed_->blocked_seg_end_) == Astar::REACH_END) {
+      printf("\033[32mThe blocked seg end [%f, %f, %f] tured traversable.\033[0m\n", expl_manager_->ed_->blocked_seg_end_[0], expl_manager_->ed_->blocked_seg_end_[1], expl_manager_->ed_->blocked_seg_end_[2]);
+      transitState(PLAN_TRAJ, "FSM");
+      break;
+    }
+    // printf("\033[33mStill blocked.\033[0m\n");
+    ROS_WARN_THROTTLE(1.0, "\033[33mStill blocked.\033[0m\n");
+    break;
+  }
+  }
+
+  // thread vis_thread(&FastExplorationFSM::visualize, this);
+  // vis_thread.detach();
   start_flag_pub.publish(state_flag);
   // std::cout<<"The State of the drone is: "<<state_flag.data<<endl;
 }
@@ -325,7 +395,9 @@ void FastExplorationFSM::visualize() {
   for (int i = 0; i < ed_ptr->frontiers_.size(); ++i) {
     frts_pts_num += ed_ptr->frontiers_[i].size();
   }
-  pcl::PointCloud<pcl::PointXYZRGBA> cloud;
+  static pcl::PointCloud<pcl::PointXYZRGBA> cloud;
+  cloud.points.clear();
+  cloud.points.reserve(frts_pts_num);
   cloud.width = frts_pts_num;
   cloud.height = 1;
   cloud.is_dense = true;
@@ -336,8 +408,8 @@ void FastExplorationFSM::visualize() {
     int j = 0;
     while (j < ft.size()) {
       pcl::PointXYZRGBA pt;
-      Eigen::Vector4d color =
-          visualization_->getColor(2 / ed_ptr->frontiers_.size(), 0.3);
+      Eigen::Vector4d color = 
+          visualization_->getColor(0.0, 0.3);
       pt.x = ft[j].x();
       pt.y = ft[j].y();
       pt.z = ft[j].z();
@@ -350,8 +422,41 @@ void FastExplorationFSM::visualize() {
     }
   }
   sensor_msgs::PointCloud2::Ptr cloud_msg(new sensor_msgs::PointCloud2);
+  //std::cout << "\033[42mcloud.width = " << cloud.width << ", cloud.points.size() = " << cloud.points.size() << "\033[0m" << std::endl;
   pcl::toROSMsg(cloud, *cloud_msg);
   visualization_->frts_pub_.publish(cloud_msg);
+  
+  // int dormant_frts_pts_num = 0;
+  // vector<vector<Vector3d>> dormant_frontiers;
+  // ft->getDormantFrontiers(dormant_frontiers);
+  // for (int i = 0; i < dormant_frontiers.size(); ++i) {
+  //   dormant_frts_pts_num += dormant_frontiers[i].size();
+  // }
+  // pcl::PointCloud<pcl::PointXYZRGBA> dormant_cloud;
+  // dormant_cloud.width = dormant_frts_pts_num;
+  // dormant_cloud.height = 1;
+  // dormant_cloud.is_dense = true;
+  // dormant_cloud.header.frame_id = "world";
+  // for (auto ft : dormant_frontiers) {
+  //   int j = 0;
+  //   while (j < ft.size()) {
+  //     pcl::PointXYZRGBA pt;
+  //     Eigen::Vector4d color =
+  //         visualization_->getColor(2.0 / 6, 0.3);
+  //     pt.x = ft[j].x();
+  //     pt.y = ft[j].y();
+  //     pt.z = ft[j].z();
+  //     pt.r = color(0) * 255;
+  //     pt.g = color(1) * 255;
+  //     pt.b = color(2) * 255;
+  //     pt.a = 50;
+  //     dormant_cloud.push_back(pt);
+  //     j++;
+  //   }
+  // }
+  // sensor_msgs::PointCloud2::Ptr dormant_cloud_msg(new sensor_msgs::PointCloud2);
+  // pcl::toROSMsg(dormant_cloud, *dormant_cloud_msg);
+  // visualization_->dormant_frts_pub_.publish(dormant_cloud_msg);
 }
 
 void FastExplorationFSM::clearVisMarker() {
