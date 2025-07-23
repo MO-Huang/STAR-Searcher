@@ -16,6 +16,8 @@
 #include <memory>
 #include <random>
 #include <tf/transform_listener.h>
+#include <nav_msgs/OccupancyGrid.h>
+#include <tuw_global_router/router_node.h>
 
 using std::default_random_engine;
 using std::normal_distribution;
@@ -30,6 +32,7 @@ public:
   ~MapROS();
   void setMap(SDFMap *map);
   void init();
+  shared_ptr<multi_robot_router::Router_Node> router_;
 
 private:
   void depthPoseCallback(const sensor_msgs::ImageConstPtr &img,
@@ -56,6 +59,7 @@ private:
   void publishMinObservedDist();
   void publishUnderObserved();
   void publishSemantic();
+  void publishFreshness();
 
   void proessDepthImage();
   void processFusionCloud();
@@ -92,7 +96,8 @@ private:
 
   ros::Publisher map_local_pub_, map_local_inflate_pub_, esdf_pub_,
       map_all_pub_, unknown_pub_, update_range_pub_, depth_pub_,
-      map_object_pub_, under_observed_pub_, debug_pub_, test_pub_, map_semantic_pub_;
+      map_object_pub_, under_observed_pub_, debug_pub_, test_pub_, 
+      map_semantic_pub_, map_freshness_pub_, nav_msgs_occupancy_grid_pub_;
   ros::Timer esdf_timer_, vis_timer_, result_timer_;
 
   //semantic mode
