@@ -2,6 +2,7 @@
 #include <path_searching/astar2.h>
 #include <plan_env/raycast.h>
 #include <plan_env/sdf_map.h>
+#include <ros/time.h>
 
 namespace fast_planner {
 // Static data
@@ -13,6 +14,7 @@ double ViewNode::w_dir_;
 shared_ptr<Astar> ViewNode::astar_;
 shared_ptr<RayCaster> ViewNode::caster_;
 shared_ptr<SDFMap> ViewNode::map_;
+shared_ptr<multi_robot_router::Router_Node> ViewNode::router_;
 
 // Graph node for viewpoints planning
 ViewNode::ViewNode(const Vector3d &p, const double &y) {
@@ -52,16 +54,13 @@ double ViewNode::searchPath(const Vector3d &p1, const Vector3d &p2,
     path = {p1, p2};
     return (p1 - p2).norm();
   }
-  // Search a path using decreasing resolution
-  // vector<double> res = {0.2};
-  // for (int k = 0; k < res.size(); ++k) {
-  astar_->reset();
-  // astar_->setResolution(res[k]);
-  if (astar_->search(p1, p2) == Astar::REACH_END) {
-    path = astar_->getPath();
-    return astar_->pathLength(path);
+  if (router_->search(p1, p2) == multi_robot_router::Router_Node::REACH_END){
+    // std::cout << "\033[32m Search succeeded.\033[0m" << std::endl;
+    path = router_->getPath(); //得到的路径z轴值是从起点到目标点均匀变化的，有可能会不符合避障要求
+    // ros::Time t2 = ros::Time::now();
+    // printf("\033[32mTime of search is %fms.\033[0m\n", (t2 - t1).toSec() * 1000);
+    return router_->pathLength(path);
   }
-  // Use Astar early termination cost as an estimate
   path = {p1, p2};
   return 1000.0 + (p1 - p2).norm();
 }
@@ -154,7 +153,7 @@ double ViewNode::computeCost(const Vector3d &p1, const Vector3d &p2,
   double t_vertical = 2.0 * v_vertical / a;
   double dist_thresh = (vm_ * vm_ - v_horizontal * v_horizontal) / (2.0 * a);
   double t_horizontal =
-      dist_thresh < pos_dist
+      dist_thresh > pos_dist
           ? (sqrt(v_horizontal * v_horizontal + 2.0 * a * pos_dist) -
              v_horizontal) /
                 a
