@@ -2,3 +2,7 @@
 	path = Star-Searcher/search_planner/search_planner/tuw_multi_robot/tuw_geometry
 	url = git@github.com:MO-Huang/tuw_geometry.git
 	branch = noetic
+[submodule "Star-Searcher/search_planner/search_planner/tuw_multi_robot/tuw_msgs"]
+	path = Star-Searcher/search_planner/search_planner/tuw_multi_robot/tuw_msgs
+	url = git@github.com:MO-Huang/tuw_msgs.git
+	branch = noetic
