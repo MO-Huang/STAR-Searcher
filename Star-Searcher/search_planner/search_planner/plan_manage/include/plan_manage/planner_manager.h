@@ -17,6 +17,8 @@
 #include <plan_manage/plan_container.hpp>
 #include <ros/ros.h>
 
+#include <tuw_global_router/router_node.h>
+
 namespace fast_planner {
 // Fast Planner Manager
 // Key algorithms of mapping and planning are called
@@ -65,6 +67,7 @@ public:
   unique_ptr<TopologyPRM> topo_prm_;
   unique_ptr<KinodynamicAstar> kino_path_finder_;
   shared_ptr<RayCaster> caster_;
+  shared_ptr<multi_robot_router::Router_Node> router_;
 
 private:
   /* main planning algorithms & modules */

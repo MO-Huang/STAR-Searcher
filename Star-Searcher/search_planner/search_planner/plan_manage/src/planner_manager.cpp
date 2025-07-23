@@ -92,6 +92,9 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle &nh) {
     visib_util_->setEDTEnvironment(edt_environment_);
     plan_data_.view_cons_.idx_ = -1;
   }
+
+  // router_.reset(new multi_robot_router::Router_Node(nh));
+  router_ = sdf_map_->getMapROS()->router_;
 }
 
 void FastPlannerManager::setGlobalWaypoints(
