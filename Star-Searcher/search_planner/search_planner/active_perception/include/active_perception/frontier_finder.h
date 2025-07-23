@@ -87,7 +87,7 @@ struct CompareCost {
 
 class FrontierFinder {
 public:
-  enum FrontierTYPE { SURFACEFTR, UNKNOWNFTR };
+  enum FrontierTYPE { SURFACEFTR, UNKNOWNFTR, NOTFRESHFTR };
   FrontierFinder(const shared_ptr<EDTEnvironment> &edt, ros::NodeHandle &nh);
   ~FrontierFinder();
 
@@ -110,6 +110,7 @@ public:
                          vector<vector<double>> &yaws);
   void updateFrontierCostMatrix();
   void clusterFrontiers(const Eigen::Vector3d &cur_pos, bool &neighbor);
+  void removeUnreachableCluster(int idx);
   void getFullCostMatrix(const Vector3d &cur_pos, const Vector3d &cur_vel,
                          const Vector3d cur_yaw, Eigen::MatrixXd &mat);
   void getCheckTourCostMatrix(const Vector3d &cur_pos, const Vector3d &cur_vel,
@@ -132,7 +133,9 @@ public:
   void getClusterMatrix(const Vector3d &cur_pos, const Vector3d &cur_vel,
                         const Vector3d cur_yaw, Eigen::MatrixXd &cost_mat);
   void getClusterTour(const vector<int> indices, vector<Vector3d> &path);
+  void getClusterTourIdx(const vector<int> indices, vector<int> &path_idx);
   void getClusterCenter(vector<Vector3d> &centers);
+  void getUnreachableClusterCenters(vector<Vector3d> &centers);
   shared_ptr<PerceptionUtils> percep_utils_;
 
 private:
@@ -157,6 +160,7 @@ private:
   vector<Eigen::Vector3i> allNeighbors(const Eigen::Vector3i &voxel);
   bool isNeighborUnknown(const Eigen::Vector3i &voxel);
   bool isNeighborUnderObserved(const Eigen::Vector3i &voxel);
+  bool isNeighborInterestedAndNotFresh(const Eigen::Vector3i &voxel);
   void expandFrontier(const Eigen::Vector3i &
                           first /* , const int& depth, const int& parent_id */);
   void findTopNCost(const vector<double> cost, int N,
@@ -192,6 +196,7 @@ private:
   int frts_num_after_remove_;
   Frontier next_frontier_;
   vector<FrontierCluster> frontier_clusters_;
+  vector<FrontierCluster> unreachable_frontier_clusters_;
   vector<checkPoint> check_tour;
 
   // Params

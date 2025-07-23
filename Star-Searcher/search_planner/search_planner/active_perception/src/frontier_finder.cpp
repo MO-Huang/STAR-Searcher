@@ -65,7 +65,7 @@ void FrontierFinder::searchFrontiers(Eigen::Vector3d cur_pos) {
 
   // Bounding box of updated region
   Vector3d update_min, update_max;
-  edt_env_->sdf_map_->getUpdatedBox(update_min, update_max, true);
+  edt_env_->sdf_map_->getUpdatedBox(update_min, update_max, false);
 
   // Removed changed frontiers in updated map
   auto resetFlag = [&](int iter, vector<Frontier> &frontiers) {
@@ -112,6 +112,8 @@ void FrontierFinder::searchFrontiers(Eigen::Vector3d cur_pos) {
   // Search new frontier within box slightly inflated from updated box
   Vector3d search_min = update_min - Vector3d(0.3, 0.3, 0.5);
   Vector3d search_max = update_max + Vector3d(0.3, 0.3, 0.5);
+  // printf("\033[32msearch_min = (%f, %f, %f), search_max = (%f, %f, %f)\033[0m\n", 
+  //       search_min[0], search_min[1], search_min[2], search_max[0], search_max[1], search_max[2]);
 
   Vector3d box_min, box_max;
   edt_env_->sdf_map_->getBox(box_min, box_max);
@@ -136,8 +138,8 @@ void FrontierFinder::searchFrontiers(Eigen::Vector3d cur_pos) {
         Eigen::Vector3d pos;
         edt_env_->sdf_map_->indexToPos(cur, pos);
         if (frontier_flag_[toadr(cur)] == 0 &&
-            ((knownfree(cur) &&
-              (isNeighborUnderObserved(cur) || isNeighborUnknown(cur))))) {
+            ((knownfree(cur) && (isNeighborUnderObserved(cur) || 
+            isNeighborUnknown(cur) || isNeighborInterestedAndNotFresh(cur))))) {
           // Expand from the seed cell to find a complete frontier cluster
           expandFrontier(cur);
         }
@@ -162,7 +164,11 @@ void FrontierFinder::expandFrontier(
   Vector3d pos;
 
   int ftr_type;
-  if (isNeighborUnderObserved(first)) {
+  if (isNeighborInterestedAndNotFresh(first))
+  {
+    ftr_type = NOTFRESHFTR;
+  }
+  else if (isNeighborUnderObserved(first)) {
     ftr_type = SURFACEFTR;
   } else {
     ftr_type = UNKNOWNFTR;
@@ -198,8 +204,8 @@ void FrontierFinder::expandFrontier(
       // {
       //   addCell(adr, nbr, pos);
       // }
-      if (knownfree(nbr) &&
-          (isNeighborUnderObserved(nbr) || isNeighborUnknown(nbr))) {
+      if (knownfree(nbr) &&(isNeighborUnderObserved(nbr) || 
+          isNeighborUnknown(nbr) || isNeighborInterestedAndNotFresh(nbr))) {
         addCell(adr, nbr, pos);
       }
     }
@@ -455,6 +461,7 @@ void FrontierFinder::clusterFrontiers(const Eigen::Vector3d &cur_pos,
   ros::Time t1 = ros::Time::now();
   // Cluster frontiers into groups
   frontier_clusters_.clear();
+  unreachable_frontier_clusters_.clear();
   bool merge;
   neighbor = false; //If the drone is in a viewpoint cluster, give this cluster the highest priority
 
@@ -660,6 +667,18 @@ void FrontierFinder::clusterFrontiers(const Eigen::Vector3d &cur_pos,
   //          frontier_clusters_.size());
 }
 
+void FrontierFinder::removeUnreachableCluster(int idx) {
+  if(idx >= frontier_clusters_.size())
+    return;
+  FrontierCluster unreach_clu = frontier_clusters_[idx];
+  unreach_clu.costs_.clear();
+  unreachable_frontier_clusters_.push_back(unreach_clu);
+  frontier_clusters_.erase(frontier_clusters_.begin() + idx);
+  for(int i = 0; i < frontier_clusters_.size(); i++){
+    frontier_clusters_[i].costs_.erase(frontier_clusters_[i].costs_.begin() + idx);
+  }
+}
+
 void FrontierFinder::mergeFrontiers(Frontier &ftr1, const Frontier &ftr2) {
   // Merge ftr2 into ftr1
   ftr1.average_ = (ftr1.average_ * double(ftr1.cells_.size()) +
@@ -723,7 +742,8 @@ bool FrontierFinder::isFrontierChanged(const Frontier &ft) {
     //   change_num++;
     // }
     if (!(knownfree(idx) && isNeighborUnderObserved(idx)) &&
-        !(knownfree(idx) && isNeighborUnknown(idx))) {
+        !(knownfree(idx) && isNeighborUnknown(idx)) &&
+        !(knownfree(idx) && isNeighborInterestedAndNotFresh(idx))) {
       change_num++;
     }
 
@@ -1021,9 +1041,10 @@ void FrontierFinder::getFrontiers(vector<vector<Eigen::Vector3d>> &clusters) {
 void FrontierFinder::getFrontierDivision(
     vector<vector<Eigen::Vector3d>> &frt_division) {
   frt_division.clear();
-  for (auto clu : frontier_clusters_) {
+  for (const auto &clu : frontier_clusters_) {
     vector<Eigen::Vector3d> tmp;
-    for (auto frt : clu.frts_) {
+    tmp.reserve(clu.frts_.size());
+    for (const auto &frt : clu.frts_) {
       tmp.push_back(frt.viewpoints_.front().pos_);
     }
     frt_division.push_back(tmp);
@@ -1216,9 +1237,22 @@ void FrontierFinder::getClusterTour(const vector<int> indices,
   }
 }
 
+void FrontierFinder::getClusterTourIdx(const vector<int> indices,
+                                    vector<int> &path_idx) {
+  path_idx.clear();
+  path_idx = indices;
+}
+
 void FrontierFinder::getClusterCenter(vector<Vector3d> &centers) {
   centers.clear();
   for (auto clu : frontier_clusters_) {
+    centers.push_back(clu.center_);
+  }
+}
+
+void FrontierFinder::getUnreachableClusterCenters(vector<Vector3d> &centers){
+  centers.clear();
+  for (auto clu : unreachable_frontier_clusters_) {
     centers.push_back(clu.center_);
   }
 }
@@ -1356,8 +1390,8 @@ bool FrontierFinder::isFrontierCovered() {
       for (auto cell : ftr.cells_) {
         Eigen::Vector3i idx;
         edt_env_->sdf_map_->posToIndex(cell, idx);
-        if (!(knownfree(idx) &&
-              (isNeighborUnknown(idx) || isNeighborUnderObserved(idx))) &&
+        if (!(knownfree(idx) && (isNeighborUnknown(idx) || 
+            isNeighborUnderObserved(idx) || isNeighborInterestedAndNotFresh(idx))) &&
             ++change_num >= change_thresh)
           // if (!(knownfree(idx) && (isNeighborUnknown(idx))) &&
           //     ++change_num >= change_thresh)
@@ -1564,6 +1598,16 @@ FrontierFinder::isNeighborUnderObserved(const Eigen::Vector3i &voxel) {
   // auto nbrs = tenNeighbors(voxel);
   for (auto nbr : nbrs) {
     if (edt_env_->sdf_map_->getOccupancy(nbr) == SDFMap::UNDEROBSERVED)
+      return true;
+  }
+  return false;
+}
+
+inline bool
+FrontierFinder::isNeighborInterestedAndNotFresh(const Eigen::Vector3i &voxel){
+  auto nbrs = sixNeighbors(voxel);
+  for (auto nbr : nbrs){
+    if(edt_env_->sdf_map_->getFreshness(nbr) == SDFMap::NOTFRESH)
       return true;
   }
   return false;
