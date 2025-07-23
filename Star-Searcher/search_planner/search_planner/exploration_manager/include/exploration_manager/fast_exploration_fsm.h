@@ -11,6 +11,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
 #include <tf2_ros/transform_listener.h>
+#include <tuw_global_router/router_node.h>
 
 #include <algorithm>
 #include <iostream>
@@ -40,7 +41,9 @@ enum EXPL_STATE {
   PUB_TRAJ,
   EXEC_TRAJ,
   FINISH,
-  SPIRAL
+  SPIRAL,
+  WAIT_FRONTIER,
+  WAIT_TRAV
 };
 
 class FastExplorationFSM {
@@ -50,6 +53,7 @@ private:
   shared_ptr<FastExplorationManager> expl_manager_;
   shared_ptr<PlanningVisualization> visualization_;
   shared_ptr<PerceptionUtils> percep_utils_;
+  shared_ptr<multi_robot_router::Router_Node> router_;
 
   shared_ptr<FSMParam> fp_;
   shared_ptr<FSMData> fd_;
