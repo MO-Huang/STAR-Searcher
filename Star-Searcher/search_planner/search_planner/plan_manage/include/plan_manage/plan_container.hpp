@@ -147,6 +147,7 @@ struct LocalTrajData {
       yaw_traj_, yawdot_traj_, yawdotdot_traj_;
   bool need_spiral_;
   double spiral_max_yaw_, spiral_min_yaw_;
+  bool go_wait_trav_ = false;
 };
 
 // structure of trajectory info
