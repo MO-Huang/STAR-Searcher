@@ -1,5 +1,6 @@
 #include "plan_env/sdf_map.h"
 #include "plan_env/map_ros.h"
+#include <memory>
 #include <plan_env/raycast.h>
 
 namespace fast_planner {
@@ -11,6 +12,7 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   mp_.reset(new MapParam);
   md_.reset(new MapData);
   mr_.reset(new MapROS);
+  vg_ = std::make_unique<tuw_graph::VoronoiGeneratorNode>(nh);
 
   // Params of map properties
   double x_size, y_size, z_size;
@@ -45,6 +47,8 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   nh.param("sdf_map/p_occ", mp_->p_occ_, 0.80);
   nh.param("sdf_map/max_ray_length", mp_->max_ray_length_, -0.1);
   nh.param("sdf_map/virtual_ceil_height", mp_->virtual_ceil_height_, -0.1);
+  
+  nh.param("sdf_map/fading_time", mp_->fading_time_, 0.0);
 
   auto logit = [](const double &x) { return log(x / (1 - x)); };
   mp_->prob_hit_log_ = logit(mp_->p_hit_);
@@ -66,6 +70,7 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   md_->semantic_occupancy_buffer_ =
       vector<double>(buffer_size, mp_->clamp_min_log_ - mp_->unknown_flag_);
   md_->semantic_occupancy_buffer_inflate_ = vector<char>(buffer_size, 0);
+  md_->freshness_value_ = vector<double>(buffer_size, -5);
   md_->min_observed_dist_ = vector<double>(buffer_size, 20.0);
   md_->distance_buffer_neg_ = vector<double>(buffer_size, mp_->default_dist_);
   md_->distance_buffer_ = vector<double>(buffer_size, mp_->default_dist_);
@@ -82,6 +87,10 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   md_->raycast_num_ = 0;
   md_->reset_updated_box_ = true;
   md_->update_min_ = md_->update_max_ = Eigen::Vector3d(0, 0, 0);
+
+  //freshness_value update
+  if(mp_->fading_time_ > 0)
+    fading_timer_ = nh.createTimer(ros::Duration(1), &SDFMap::fadingCallback, this);
 
   // Try retriving bounding box of map, set box to map size if not specified
   vector<string> axis = {"x", "y", "z"};
@@ -624,6 +633,7 @@ void SDFMap::inputCamLidarSemanticPointCloud(const Eigen::MatrixXd &points,
   }
   while (!md_->cache_semantic_voxel_.empty()) {
     int adr = md_->cache_semantic_voxel_.front();
+    bool occ_state_before = (md_->semantic_occupancy_buffer_[adr] > mp_->min_occupancy_log_);
     md_->cache_semantic_voxel_.pop();
     double log_odds_update = md_->semantic_count_hit_[adr] >= md_->semantic_count_miss_[adr]
                                  ? mp_->prob_hit_log_
@@ -636,6 +646,10 @@ void SDFMap::inputCamLidarSemanticPointCloud(const Eigen::MatrixXd &points,
         std::min(std::max(md_->semantic_occupancy_buffer_[adr] + log_odds_update,
                           mp_->clamp_min_log_),
                  mp_->clamp_max_log_);
+    if(md_->semantic_occupancy_buffer_[adr] > mp_->min_occupancy_log_)
+      md_->freshness_value_[adr] = md_->semantic_occupancy_buffer_[adr];
+    else if(occ_state_before)
+      md_->freshness_value_[adr] = -5;
   }
 }
 
@@ -854,6 +868,66 @@ SDFMap::sixNeighbors(const Eigen::Vector3i &voxel) {
   neighbors[5] = tmp;
 
   return neighbors;
+}
+
+void SDFMap::fadingCallback(const ros::TimerEvent & /*event*/){
+  const double reduce = (mp_->clamp_max_log_ - mp_->min_occupancy_log_) / mp_->fading_time_;
+  const double low_thres = mp_->clamp_min_log_ + reduce;
+
+  for(size_t i = 0; i < md_->freshness_value_.size(); ++i)
+  {
+    if(md_->freshness_value_[i] > low_thres)
+    {
+      md_->freshness_value_[i] -= reduce;
+      md_->occupancy_buffer_[i] = md_->freshness_value_[i];
+    }
+  }
+}
+
+nav_msgs::OccupancyGrid SDFMap::convert3DMapLayerToOccupancyGrid(int z_layer) {
+    
+    // 创建OccupancyGrid消息
+    nav_msgs::OccupancyGrid grid;
+    
+    // 设置元数据
+    grid.header.stamp = ros::Time::now();
+    grid.header.frame_id = "world";  // 根据实际情况修改坐标系
+    
+    // 设置地图尺寸和分辨率
+    grid.info.resolution = mp_->resolution_;  // 单位：米/像素
+    grid.info.width = mp_->map_voxel_num_(0);  // X方向体素数量
+    grid.info.height = mp_->map_voxel_num_(1); // Y方向体素数量
+    
+    // 设置地图原点
+    grid.info.origin.position.x = mp_->map_origin_(0);
+    grid.info.origin.position.y = mp_->map_origin_(1);
+    grid.info.origin.position.z = mp_->map_origin_(2) + z_layer * mp_->resolution_; // Z方向偏移
+    grid.info.origin.orientation.x = 0.0;
+    grid.info.origin.orientation.y = 0.0;
+    grid.info.origin.orientation.z = 0.0;
+    grid.info.origin.orientation.w = 1.0;
+    
+    // 调整数据容器大小
+    grid.data.resize(grid.info.width * grid.info.height);
+    
+    // 提取指定层的数据并转换为OccupancyGrid格式
+    for (int y = 0; y < mp_->map_voxel_num_(1); ++y) {
+        for (int x = 0; x < mp_->map_voxel_num_(0); ++x) {
+            // 计算3D缓冲区索引
+            int idx_3d = toAddress(x, y, z_layer);
+
+            // 计算2D数据索引（注意：OccupancyGrid使用行优先存储）
+            int idx_2d = y * grid.info.width + x;
+            
+            // grid.data[idx_2d] = md_->occupancy_buffer_inflate_[idx_3d] > 0 ? 100 : 0;
+            if(md_->occupancy_buffer_[idx_3d] < mp_->clamp_min_log_)
+              grid.data[idx_2d] = -1;
+            else
+              grid.data[idx_2d] = md_->occupancy_buffer_inflate_[idx_3d] > 0 ? 100 : 0;
+        }
+    }
+    
+    return grid;
 }
 
 double SDFMap::getResolution() { return mp_->resolution_; }
