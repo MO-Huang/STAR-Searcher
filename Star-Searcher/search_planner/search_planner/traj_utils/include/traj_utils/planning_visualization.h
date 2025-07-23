@@ -62,6 +62,7 @@ public:
   PlanningVisualization(ros::NodeHandle &nh);
 
   ros::Publisher frts_pub_;
+  ros::Publisher dormant_frts_pub_;
   vector<Eigen::Vector3d> arrow_start;
   vector<Eigen::Vector3d> arrow_end;
 

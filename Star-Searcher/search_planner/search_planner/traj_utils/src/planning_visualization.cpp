@@ -48,6 +48,8 @@ PlanningVisualization::PlanningVisualization(ros::NodeHandle &nh) {
 
   frts_pub_ =
       node.advertise<sensor_msgs::PointCloud2>("/planning_vis/frt_debug", 1000);
+  dormant_frts_pub_ =
+      node.advertise<sensor_msgs::PointCloud2>("/planning_vis/dormant_frt_debug", 1000);
 
   // node.param("planning_vis/world_frame", world_frame_, string("world"));
   last_topo_path1_num_ = 0;
