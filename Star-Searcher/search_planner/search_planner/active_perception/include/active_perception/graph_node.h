@@ -9,6 +9,7 @@
 #include <queue>
 #include <unordered_map>
 #include <vector>
+#include <tuw_global_router/router_node.h>
 
 using Eigen::Vector3d;
 using Eigen::Vector3i;
@@ -95,6 +96,7 @@ public:
   static shared_ptr<Astar> astar_;
   static shared_ptr<RayCaster> caster_;
   static shared_ptr<SDFMap> map_;
+  static shared_ptr<multi_robot_router::Router_Node> router_;
 };
 } // namespace fast_planner
 #endif
