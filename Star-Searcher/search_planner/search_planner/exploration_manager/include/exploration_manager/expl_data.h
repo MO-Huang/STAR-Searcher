@@ -46,8 +46,10 @@ struct ExplorationData {
   vector<Vector3d> views_;
   vector<double> yaws_;
   vector<Vector3d> global_tour_;
+  vector<int> global_tour_idx_;
   vector<Vector3d> inertia_tour_;
   vector<Vector3d> frontier_tour_;
+  Vector3d blocked_seg_end_;
 
   vector<int> refined_ids_;
   vector<vector<Vector3d>> n_points_;
