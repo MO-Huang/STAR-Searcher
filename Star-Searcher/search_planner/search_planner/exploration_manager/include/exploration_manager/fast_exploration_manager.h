@@ -6,6 +6,7 @@
 #include <ros/ros.h>
 #include <string>
 #include <vector>
+#include <tuw_global_router/router_node.h>
 
 using Eigen::Vector3d;
 using std::shared_ptr;
@@ -51,6 +52,7 @@ public:
   shared_ptr<SDFMap> sdf_map_;
   shared_ptr<PlanningVisualization> visualization_;
   // unique_ptr<ViewFinder> view_finder_;
+  shared_ptr<multi_robot_router::Router_Node> router_;
 
 private:
   struct TSPConfig {
