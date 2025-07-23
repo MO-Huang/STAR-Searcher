@@ -60,6 +60,8 @@
     <param name="sdf_map/min_ray_length" value="0.2" />
     <param name="sdf_map/max_ray_length" value="$(arg observe_update_dist)" />
     <param name="sdf_map/virtual_ceil_height" value="-10" />
+    <!-- <param name="sdf_map/fading_time" value="4" /> -->
+    <param name="sdf_map/fading_time" value="0" />
     <param name="sdf_map/optimistic" value="false" type="bool" />
     <param name="sdf_map/signed_dist" value="false" type="bool" />
     <param name="sdf_map/box_min_x" value="$(arg box_min_x)" type="double" />
@@ -70,6 +72,16 @@
     <param name="sdf_map/box_max_z" value="$(arg box_max_z)" type="double" />
     <param name="sdf_map/belief_dist" value="$(arg belief_dist)" type="double" />
 
+    <!-- VoronoiGenerator -->
+    <param name="loop_rate" value="0.5" />
+    <param name="publish_voronoi_map_image" value="false" />
+    <param name="map_inflation" value="0.0" />
+    <param name="segment_length" value="1.0" />
+    <param name="opt_crossings" value="0.2" />
+    <param name="opt_end_segments" value="0.2" />
+    <param name="graph_cache_path" value="/home/max/star_searcher_ws/src/STAR-Searcher/Star-Searcher/search_planner/search_planner/tuw_multi_robot/tuw_multi_robot/tuw_voronoi_graph/tmp" />
+    <param name="custom_graph_path" value="" />
+    <!-- <remap from="/map" to="/nav_msgs_occupancy_grid" /> -->
 
     <param name="map_ros/cx" value="$(arg cx)" />
     <param name="map_ros/cy" value="$(arg cy)" />
@@ -87,15 +99,15 @@
     <param name="map_ros/show_esdf_time" value="false" />
     <param name="map_ros/show_all_map" value="true" />
     <param name="map_ros/frame_id" value="world" />
-    <param name="map_ros/semantic_mode" value="true" />
+    <param name="map_ros/semantic_mode" value="false" />
 
     <!-- Camera_Lidar_Fusion-->
     <param name="map_ros/camera_lidar_fusion/fx" type="double" value="1386.4139404296875" />
     <param name="map_ros/camera_lidar_fusion/fy" type="double" value="1386.4139404296875" />
     <param name="map_ros/camera_lidar_fusion/cx" type="double" value="960.0" />
     <param name="map_ros/camera_lidar_fusion/cy" type="double" value="540.0" />
-    <!-- <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points" /> -->
-    <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points_semantic" />
+    <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points" />
+    <!-- <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points_semantic" /> -->
     <param name="map_ros/camera_lidar_fusion/image_topic" type="str" value="/camera/color/image_raw" />
     <param name="map_ros/camera_lidar_fusion/lidar_tf_target_frame" type="str" value="world" />
     <param name="map_ros/camera_lidar_fusion/lidar_tf_source_frame" type="str" value="ardrone/velodyne" />
@@ -134,7 +146,7 @@
     <param name="frontier/min_candidate_clearance" value="0.3" type="double" />
     <param name="frontier/candidate_dphi" value="$(eval 20 * 3.1415926 / 180.0)" type="double" />
     <param name="frontier/candidate_rnum" value=" 3" type="int" />
-    <param name="frontier/candidate_rmin" value="2.0" type="double" />
+    <param name="frontier/candidate_rmin" value="0.5" type="double" />
     <param name="frontier/candidate_rmax" value="3.0" type="double" />
     <param name="frontier/down_sample" value="2" type="int" />
     <param name="frontier/min_visib_num" value="60" type="int" />
