@@ -16,13 +16,14 @@ plan_env
 bspline
 path_searching
 cv_bridge
+tuw_multi_robot_router
 )
 
 
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES active_perception
- CATKIN_DEPENDS plan_env bspline path_searching
+ CATKIN_DEPENDS plan_env bspline path_searching tuw_multi_robot_router
  DEPENDS system_lib
 )
 
