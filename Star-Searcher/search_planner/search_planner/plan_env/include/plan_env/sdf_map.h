@@ -4,12 +4,18 @@
 #include <Eigen/Eigen>
 #include <Eigen/StdVector>
 
+#include <memory>
 #include <queue>
 #include <ros/ros.h>
 #include <tuple>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+
+#include <nav_msgs/OccupancyGrid.h>
+#include <tuw_voronoi_graph/voronoi_graph_node.h>
+#include <plan_env/map_ros.h>
+
 using namespace std;
 
 namespace cv {
@@ -33,6 +39,12 @@ public:
     FREE,
     UNDEROBSERVED,
     OCCUPIED,
+  };
+
+  enum FRESHNESS {
+    NOTINTERESTED,
+    FRESH,
+    NOTFRESH,
   };
 
   void initMap(ros::NodeHandle &nh);
@@ -62,6 +74,8 @@ public:
   double getObserverDist(const Eigen::Vector3i &id);
   int getOccupancy(const Eigen::Vector3d &pos);
   int getOccupancy(const Eigen::Vector3i &id);
+  int getFreshness(const Eigen::Vector3d &pos);
+  int getFreshness(const Eigen::Vector3i &id);
   void setOccupied(const Eigen::Vector3d &pos, const int &occ = 1);
   int getInflateOccupancy(const Eigen::Vector3d &pos);
   int getInflateOccupancy(const Eigen::Vector3i &id);
@@ -84,6 +98,7 @@ public:
   int getVoxelNum();
   double getZ();
   double getBeliefDist();
+  MapROS* getMapROS() {return mr_.get();};
 
 private:
   void clearAndInflateLocalMap();
@@ -93,6 +108,8 @@ private:
   void setCacheOccupancy(const int &adr, const int &occ);
   void setCacheSemanticOccupancy(const int &adr, const int &occ);
   void setObservedDist(const int &adr, const double &dist);
+  void fadingCallback(const ros::TimerEvent & /*event*/);
+  nav_msgs::OccupancyGrid convert3DMapLayerToOccupancyGrid(int z_layer);
   Eigen::Vector3d closetPointInMap(const Eigen::Vector3d &pt,
                                    const Eigen::Vector3d &camera_pt);
   template <typename F_get_val, typename F_set_val>
@@ -103,9 +120,11 @@ private:
   ros::Publisher debug_pts_pub_;
   std::unique_ptr<MapParam> mp_;
   std::unique_ptr<MapData> md_;
+  std::unique_ptr<tuw_graph::VoronoiGeneratorNode> vg_;
   // std::unique_ptr<MapROS> mr_;
   std::unique_ptr<RayCaster> caster_;
   std::unique_ptr<MapROS> mr_;
+  ros::Timer fading_timer_;
   friend MapROS;
   friend camlidFusion;
 
@@ -127,6 +146,7 @@ struct MapParam {
   Eigen::Vector3d box_mind_, box_maxd_;
   double default_dist_;
   bool optimistic_, signed_dist_;
+  double fading_time_;
   // map fusion
   double p_hit_, p_miss_, p_min_, p_max_, p_occ_; // occupancy probability
   double prob_hit_log_, prob_miss_log_, clamp_min_log_, clamp_max_log_,
@@ -143,6 +163,7 @@ struct MapData {
   std::vector<char> occupancy_buffer_inflate_;
   std::vector<double> semantic_occupancy_buffer_;
   std::vector<char> semantic_occupancy_buffer_inflate_;
+  std::vector<double> freshness_value_;
   std::vector<double> min_observed_dist_;
   std::vector<double> distance_buffer_neg_;
   std::vector<double> distance_buffer_;
@@ -270,6 +291,29 @@ inline int SDFMap::getOccupancy(const Eigen::Vector3d &pos) {
   Eigen::Vector3i id;
   posToIndex(pos, id);
   return getOccupancy(id);
+}
+
+inline int SDFMap::getFreshness(const Eigen::Vector3i &id) {
+  if (!isInMap(id))
+    return -1;
+
+  double reduce = 0;
+  if (mp_->fading_time_ > 0)
+    reduce = (mp_->clamp_max_log_ - mp_->min_occupancy_log_) / mp_->fading_time_;
+  const double low_thres = mp_->clamp_min_log_ + reduce;
+  
+  if(md_->freshness_value_[toAddress(id)] == -5)
+    return NOTINTERESTED;
+  else if(md_->freshness_value_[toAddress(id)] > low_thres)
+    return FRESH;
+  else
+    return NOTFRESH;
+}
+
+inline int SDFMap::getFreshness(const Eigen::Vector3d &pos) {
+  Eigen::Vector3i id;
+  posToIndex(pos, id);
+  return getFreshness(id);
 }
 
 inline void SDFMap::setOccupied(const Eigen::Vector3d &pos, const int &occ) {
