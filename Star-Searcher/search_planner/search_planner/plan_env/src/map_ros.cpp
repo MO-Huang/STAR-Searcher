@@ -100,9 +100,12 @@ void MapROS::init() {
       "/cam_lidar/under_observed", 10);
   map_semantic_pub_ = node_.advertise<sensor_msgs::PointCloud2>(
     "/cam_lidar/semantic", 10);
+  map_freshness_pub_ = node_.advertise<sensor_msgs::PointCloud2>(
+    "/cam_lidar/freshness", 10);
   debug_pub_ =
       node_.advertise<sensor_msgs::PointCloud2>("/cam_lidar/debug", 10);
   test_pub_ = node_.advertise<std_msgs::Float32>("/result/voxel_ratio", 10);
+  nav_msgs_occupancy_grid_pub_ = node_.advertise<nav_msgs::OccupancyGrid>("/nav_msgs_occupancy_grid", 10);
 
   depth_sub_.reset(new message_filters::Subscriber<sensor_msgs::Image>(
       node_, "/map_ros/depth", 50));//当前launch文件中指定为none，注释中提到depth_topic和cloud_topic订阅二者其一
@@ -131,6 +134,9 @@ void MapROS::init() {
     new message_filters::Synchronizer<MapROS::SyncPolicyLidarCamera>(
         MapROS::SyncPolicyLidarCamera(100), *lidar_sub_, *image_sub_,
         *odom_sub_));
+
+  router_.reset(new multi_robot_router::Router_Node(node_));
+
   if(semantic_mode)
   {
     sync_camera_lidar_->registerCallback(
@@ -157,10 +163,12 @@ void MapROS::visCallback(const ros::TimerEvent &e) {
     }
   }
   publishMinObservedDist();
-  if(semantic_mode)
+  if(semantic_mode){
     publishSemantic();
+    publishFreshness();
+  }
   // publishUnderObserved();
-  // publishUnknown();
+  //publishUnknown();
   // publishESDF();
 
   // publishUpdateRange();
@@ -282,6 +290,11 @@ void MapROS::cameralidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
     map_->clearAndInflateLocalMap();
     esdf_need_update_ = true;
     local_updated_ = false;
+    nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(20);
+    nav_msgs_occupancy_grid_pub_.publish(grid);
+    map_->vg_->generateGraph(grid);
+    router_->updateMap(map_->vg_->getLongTermMap());
+    router_->updateGraph(map_->vg_->getSegments());
   }
   auto t2 = ros::Time::now();
   float fusion_time = (t2 - t1).toSec();
@@ -367,6 +380,7 @@ void MapROS::convertPointCloud2ToPclXYZL(const sensor_msgs::PointCloud2& msg, pc
 void MapROS::camerasemanticlidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
                                  const sensor_msgs::ImageConstPtr &image_rect,
                                  const nav_msgs::OdometryConstPtr &pose) {
+  // ros::Time t1 = ros::Time::now();
   lidar2world_rotation = Eigen::Quaterniond(
       pose->pose.pose.orientation.w, pose->pose.pose.orientation.x,
       pose->pose.pose.orientation.y, pose->pose.pose.orientation.z);
@@ -376,7 +390,9 @@ void MapROS::camerasemanticlidarCallback(const sensor_msgs::PointCloud2ConstPtr 
 
   cv_image_ = cv_bridge::toCvCopy(image_rect, image_rect->encoding);
 
+  // ros::Time t2 = ros::Time::now();
   convertPointCloud2ToPclXYZL(*cloud, *temp_semantic_cloud);
+  // ros::Time t3 = ros::Time::now();
   processFusionSemanticCloud();
   map_->inputCamLidarSemanticPointCloud(world_pts_in_lidar, pixel_uv, lidar_pts,
                                 lidar_pos, semantic_label);
@@ -385,7 +401,20 @@ void MapROS::camerasemanticlidarCallback(const sensor_msgs::PointCloud2ConstPtr 
     map_->clearAndInflateLocalMapSemantic();
     esdf_need_update_ = true;
     local_updated_ = false;
+    // ros::Time t1 = ros::Time::now();
+    nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(20);
+    nav_msgs_occupancy_grid_pub_.publish(grid);
+    // std::cout << "\033[33mmap_->vg_->generateGraph(grid);\033[0m" << std::endl;
+    map_->vg_->generateGraph(grid);
+    router_->updateMap(map_->vg_->getLongTermMap());
+    router_->updateGraph(map_->vg_->getSegments());
+    // ros::Time t2 = ros::Time::now();
+    // ROS_INFO("Time of Occupancy Grid Transformation: %f.", (t2 - t1).toSec());
   }
+  // ros::Time t4 = ros::Time::now();
+  // double lidar_callback_time = (t4 - t1).toSec();
+  // double pcl_convert_time = (t3 - t2).toSec();
+  // printf("\033[32m lidar_callback_time = %f, pcl_convert_time = %f\033[0m\n",lidar_callback_time, pcl_convert_time);
 }
 
 void MapROS::processFusionSemanticCloud() {
@@ -617,9 +646,14 @@ void MapROS::publishUnknown() {
   map_->boundIndex(max_cut);
   map_->boundIndex(min_cut);
 
-  for (int x = min_cut(0); x <= max_cut(0); ++x)
-    for (int y = min_cut(1); y <= max_cut(1); ++y)
-      for (int z = min_cut(2); z <= max_cut(2); ++z) {
+  int z_max_cut = floor((1.8 - map_->mp_->map_origin_(2)) * map_->mp_->resolution_inv_);
+
+  for (int x = map_->mp_->box_min_(0) /* + 1 */; x < map_->mp_->box_max_(0);
+       ++x)
+    for (int y = map_->mp_->box_min_(1) /* + 1 */; y < map_->mp_->box_max_(1);
+         ++y)
+      for (int z = map_->mp_->box_min_(2) /* + 1 */; z < z_max_cut;
+           ++z) {
         if (map_->md_->occupancy_buffer_[map_->toAddress(x, y, z)] <
             map_->mp_->clamp_min_log_ - 1e-3) {
           Eigen::Vector3d pos;
@@ -810,6 +844,47 @@ void MapROS::publishSemantic() {
   sensor_msgs::PointCloud2 cloud_msg;
   pcl::toROSMsg(cloud1, cloud_msg);
   map_semantic_pub_.publish(cloud_msg);
+};
+
+void MapROS::publishFreshness() {
+  pcl::PointXYZRGB pt;
+  pcl::PointCloud<pcl::PointXYZRGB> cloud1;
+  for (int x = map_->mp_->box_min_(0) /* + 1 */; x < map_->mp_->box_max_(0);
+       ++x)
+    for (int y = map_->mp_->box_min_(1) /* + 1 */; y < map_->mp_->box_max_(1);
+         ++y)
+      for (int z = map_->mp_->box_min_(2) /* + 1 */; z < map_->mp_->box_max_(2);
+           ++z) {
+        if (map_->md_->freshness_value_[map_->toAddress(x, y, z)] != -5){
+          double reduce = 0;
+          if (map_->mp_->fading_time_ > 0)
+            reduce = (map_->mp_->clamp_max_log_ - map_->mp_->min_occupancy_log_) / map_->mp_->fading_time_;
+          const double low_thres = map_->mp_->clamp_min_log_ + reduce;
+          
+          Eigen::Vector3d pos;
+          int color;
+          if(map_->md_->freshness_value_[map_->toAddress(x, y, z)] < low_thres)
+            color = 0;
+          else
+            color = floor( (map_->md_->freshness_value_[map_->toAddress(x, y, z)] - low_thres)/(map_->mp_->clamp_max_log_ - low_thres) * 510);
+
+          map_->indexToPos(Eigen::Vector3i(x, y, z), pos);
+          pt.x = pos(0);
+          pt.y = pos(1);
+          pt.z = pos(2);
+          pt.r = color > 255 ? 510 - color : 255;
+          pt.g = color < 255 ? color : 255;
+          pt.b = 0;
+          cloud1.push_back(pt);
+        }
+      }
+  cloud1.width = cloud1.points.size();
+  cloud1.height = 1;
+  cloud1.is_dense = true;
+  cloud1.header.frame_id = "world";
+  sensor_msgs::PointCloud2 cloud_msg;
+  pcl::toROSMsg(cloud1, cloud_msg);
+  map_freshness_pub_.publish(cloud_msg);
 };
 
 void MapROS::publishUnderObserved() {
