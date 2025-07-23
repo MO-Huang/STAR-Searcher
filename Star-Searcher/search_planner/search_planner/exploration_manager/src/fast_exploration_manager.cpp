@@ -30,6 +30,7 @@ FastExplorationManager::~FastExplorationManager() {
   ViewNode::astar_.reset();
   ViewNode::caster_.reset();
   ViewNode::map_.reset();
+  ViewNode::router_.reset();
 }
 
 void FastExplorationManager::initialize(ros::NodeHandle &nh) {
@@ -39,6 +40,7 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   sdf_map_ = edt_environment_->sdf_map_;
   frontier_finder_.reset(new FrontierFinder(edt_environment_, nh));
   // view_finder_.reset(new ViewFinder(edt_environment_, nh));
+  router_ = planner_manager_->router_;
 
   ed_.reset(new ExplorationData);
   ep_.reset(new ExplorationParam);
@@ -69,6 +71,7 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   ViewNode::astar_.reset(new Astar);
   ViewNode::astar_->init(nh, edt_environment_);
   ViewNode::map_ = sdf_map_;
+  ViewNode::router_ = router_;
 
   double resolution_ = sdf_map_->getResolution();
   Eigen::Vector3d origin, size;
@@ -127,7 +130,8 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
   frontier_finder_->computeFrontiersToVisit(pos);
   // frontier_finder_->updateFrontierCostMatrix();
   bool neighbor;
-  frontier_finder_->clusterFrontiers(pos, neighbor);
+  frontier_finder_->clusterFrontiers(pos, neighbor); 
+  //若此处代码执行后得到的neighbor为true，说明无人机正在某个边界聚类中。这个neighbor影响findNextCluster，使得优先搜索无人机所在聚类
 
   frontier_finder_->getFrontiers(ed_->frontiers_);
   // frontier_finder_->getFrontierBoxes(ed_->frontier_boxes_);
@@ -144,137 +148,233 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
   vector<vector<Eigen::Vector3d>> division_clusters;
   frontier_finder_->getFrontierDivision(division_clusters);
   Eigen::Vector3d next_cluster_pos;
-  if (division_clusters.size() > 1) {
-    findNextCluster(pos, vel, yaw, ed_->local_tour_, next_cluster_pos,
-                    neighbor);
-  } else {
-    vector<int> indices;
-    indices.push_back(0);
-    frontier_finder_->getClusterTour(indices, ed_->global_tour_);
-    frontier_finder_->getCheckTour(0, ed_->local_tour_);
-    next_cluster_pos = ed_->global_tour_[0];
-  }
-
-  // for visualize
-  ed_->grid_tour_.clear();
-  ed_->grid_tour_.push_back(pos);
-  ed_->inertia_tour_.insert(ed_->inertia_tour_.begin(), pos);
-  for (auto p : ed_->global_tour_)
-    ed_->grid_tour_.push_back(p);
-
-  // Do global and local tour planning and retrieve the next viewpoint
-  Vector3d next_pos;
-  vector<double> next_yaw;
-  if (ed_->local_tour_.size() > 1) {
-    vector<int> indices;
-    findLocalTour(pos, vel, yaw, next_cluster_pos, indices);
-    next_pos = ed_->local_tour_[indices[0]].pos_;
-    next_yaw = ed_->local_tour_[indices[0]].yaws_;
-    ed_->local_tour_vis_.clear();
-    ed_->local_tour_vis_.push_back(pos);
-    for (int i = 0; i < indices.size() - 1; i++) {
-      ed_->local_tour_vis_.push_back(ed_->local_tour_[indices[i]].pos_);
+  while(division_clusters.size() > 0){
+    if (division_clusters.size() > 1) {
+      findNextCluster(pos, vel, yaw, ed_->local_tour_, next_cluster_pos,
+                      neighbor);
+    } else {
+      vector<int> indices;
+      indices.push_back(0);
+      frontier_finder_->getClusterTour(indices, ed_->global_tour_);
+      frontier_finder_->getClusterTourIdx(indices, ed_->global_tour_idx_);
+      frontier_finder_->getCheckTour(0, ed_->local_tour_);
+      next_cluster_pos = ed_->global_tour_[0];
     }
-    ed_->local_tour_vis_.push_back(next_cluster_pos);
-  } else if (ed_->local_tour_.size() == 1) {
-    next_pos = ed_->local_tour_[0].pos_;
-    next_yaw = ed_->local_tour_[0].yaws_;
-    ed_->local_tour_vis_.clear();
-    ed_->local_tour_vis_.push_back(pos);
-    ed_->local_tour_vis_.push_back(ed_->local_tour_[0].pos_);
 
-  } else
-    ROS_ERROR("Empty destination.");
+    // for visualize
+    ed_->grid_tour_.clear();
+    ed_->grid_tour_.push_back(pos);
+    ed_->inertia_tour_.insert(ed_->inertia_tour_.begin(), pos);
+    for (auto p : ed_->global_tour_)
+      ed_->grid_tour_.push_back(p);
 
-  std::cout << "Next view: " << next_pos.transpose() << std::endl;
+    // Do global and local tour planning and retrieve the next viewpoint
+    Vector3d next_pos;
+    vector<double> next_yaw;
+    if (ed_->local_tour_.size() > 1) {
+      vector<int> indices;
+      findLocalTour(pos, vel, yaw, next_cluster_pos, indices);
+      next_pos = ed_->local_tour_[indices[0]].pos_;
+      next_yaw = ed_->local_tour_[indices[0]].yaws_;
+      ed_->local_tour_vis_.clear();
+      ed_->local_tour_vis_.push_back(pos);
+      for (int i = 0; i < indices.size() - 1; i++) {
+        ed_->local_tour_vis_.push_back(ed_->local_tour_[indices[i]].pos_);
+      }
+      ed_->local_tour_vis_.push_back(next_cluster_pos);
+    } else if (ed_->local_tour_.size() == 1) {
+      next_pos = ed_->local_tour_[0].pos_;
+      next_yaw = ed_->local_tour_[0].yaws_;
+      ed_->local_tour_vis_.clear();
+      ed_->local_tour_vis_.push_back(pos);
+      ed_->local_tour_vis_.push_back(ed_->local_tour_[0].pos_);
 
-  // Plan trajectory (position and yaw) to the next viewpoint
-  t1 = ros::Time::now();
+    } else
+      ROS_ERROR("Empty destination.");
 
-  auto minElementIterator = std::min_element(next_yaw.begin(), next_yaw.end());
-  double min_yaw = *minElementIterator;
-  auto maxElementIterator = std::max_element(next_yaw.begin(), next_yaw.end());
-  double max_yaw = *maxElementIterator;
+    std::cout << "Next view: " << next_pos.transpose() << std::endl;
 
-  // Generate trajectory of x,y,z
-  planner_manager_->path_finder_->reset();
-  planner_manager_->path_finder_->setMaxSearchTime(0.001);
-  if (planner_manager_->path_finder_->search(pos, next_pos) !=
-      Astar::REACH_END) {
-    planner_manager_->path_finder_->setMaxSearchTime(0.008);
+    // Plan trajectory (position and yaw) to the next viewpoint
+    t1 = ros::Time::now();
+
+    auto minElementIterator = std::min_element(next_yaw.begin(), next_yaw.end());
+    double min_yaw = *minElementIterator;
+    auto maxElementIterator = std::max_element(next_yaw.begin(), next_yaw.end());
+    double max_yaw = *maxElementIterator;
+
+    // Generate trajectory of x,y,z
+    bool go_wait_trav = false;
+    planner_manager_->path_finder_->reset();
+    planner_manager_->path_finder_->setMaxSearchTime(0.001);
     if (planner_manager_->path_finder_->search(pos, next_pos) !=
         Astar::REACH_END) {
-      ROS_ERROR("No path to next viewpoint");
-      return FAIL;
+      planner_manager_->path_finder_->setMaxSearchTime(0.008);
+      if (planner_manager_->path_finder_->search(pos, next_pos) !=
+          Astar::REACH_END) {
+        // ROS_ERROR("No path to next viewpoint");
+        // return FAIL;
+        ROS_ERROR("No path to next viewpoint (%f, %f, %f).", next_pos[0], next_pos[1], next_pos[2]);
+        frontier_finder_->removeUnreachableCluster(ed_->global_tour_idx_[0]);
+        frontier_finder_->getFrontierDivision(division_clusters);
+        if(division_clusters.size() > 0)
+            continue;
+        else {
+          // bool found_blocked = false;
+          printf("\033[33mTry to find blocked seg.\033[0m\n");
+          vector<Eigen::Vector3d> unreachable_centers;
+          frontier_finder_->getUnreachableClusterCenters(unreachable_centers);
+          if (router_->search(pos, unreachable_centers[0]) == multi_robot_router::Router_Node::REACH_END){
+            vector<Eigen::Vector3d> path = router_->getPath(); //得到的路径z轴值是从起点到目标点均匀变化的，有可能会不符合避障要求
+            vector<Eigen::Vector3d> blocked_seg = router_->getBlockedPathSeg();
+            if(blocked_seg.size() > 0) {
+              // printf("\033[33mThe size of found blocked seg is %lu.\033[0m\n", blocked_seg.size());
+              printf("\033[33mfound blocked seg: [%f, %f, %f] to [%f, %f, %f].\033[0m\n", 
+                      blocked_seg[0][0], blocked_seg[0][1], blocked_seg[0][2], blocked_seg[1][0], blocked_seg[1][1], blocked_seg[1][2]);
+              // return FAIL;
+              bool found = false;
+              // double n = 1.5;
+              // next_pos = (n + 1) * blocked_seg[0] - n * blocked_seg[1];
+              next_pos = 2.5 * blocked_seg[0] - 1.5 * blocked_seg[1];
+              next_pos[2] = pos[2];
+              while(!found){
+                bool safe = true;
+                Vector3i idx;
+                Vector3i unsafe_idx;
+                planner_manager_->caster_->input(next_pos, blocked_seg[0]);
+                while (planner_manager_->caster_->nextId(idx)) {
+                  if (sdf_map_->getInflateOccupancy(idx) == 1) 
+                  {
+                    safe = false;
+                    unsafe_idx = idx;
+                    break;
+                  }
+                }
+                if(!safe){
+                  Eigen::Vector3d unsafe_pos;
+                  sdf_map_->indexToPos(unsafe_idx, unsafe_pos);
+                  next_pos[0] = (unsafe_pos[0] + blocked_seg[0][0]) / 2;
+                  next_pos[1] = (unsafe_pos[1] + blocked_seg[0][1]) / 2;
+                  continue;
+                }
+                Eigen::Vector3i next_idx;
+                sdf_map_->posToIndex(next_pos, next_idx);
+                if (safe && sdf_map_->getInflateOccupancy(next_idx) == 0) {
+                  found  = true;
+                  break;
+                } else if(sdf_map_->getInflateOccupancy(next_idx) != 0) {
+                  double n = (next_pos[0] - blocked_seg[0][0]) / (blocked_seg[0][0] - blocked_seg[1][0]);
+                  n = std::max(0.0, n - 0.1);
+                  next_pos = (n + 1) * blocked_seg[0] - n * blocked_seg[1];
+                  if (n == 0.0) {
+                    found = true;
+                    break;
+                  }
+                }
+              }
+              printf("\033[33mcurrent pose:[%f, %f, %f], waiting point: [%f, %f, %f]\033[0m\n", pos[0], pos[1], pos[2], next_pos[0], next_pos[1], next_pos[2]);
+              ed_->blocked_seg_end_ = blocked_seg[1];
+              Eigen::Vector3d dir = (blocked_seg[1] - blocked_seg[0]).normalized();
+              next_yaw = {atan2(dir[1], dir[0])};
+              frontier_finder_->wrapYaw(next_yaw[0]);
+              min_yaw = max_yaw = next_yaw[0];
+              planner_manager_->path_finder_->reset();
+              planner_manager_->path_finder_->setMaxSearchTime(0.001);
+              if (planner_manager_->path_finder_->search(pos, next_pos) != Astar::REACH_END) {
+                planner_manager_->path_finder_->setMaxSearchTime(0.008);
+                if (planner_manager_->path_finder_->search(pos, next_pos) != Astar::REACH_END) {
+                  printf("\033[31m No path to the blocked path seg.\033[0m\n");
+                  return FAIL;
+                }
+              }
+              printf("\033[32m Found path to the blocked path seg.\033[0m\n");
+              go_wait_trav = true;
+            }
+            else {
+              printf("\033[31m No active frontier clusters and blocked seg not found.\033[0m\n");
+              return FAIL;
+            }
+          }
+          else {
+            printf("\033[31m router_->search(pos, unreachable_centers[0]) failed.\033[0m\n");
+            return FAIL;
+          }
+        }
+      }
     }
-  }
-  ed_->path_next_goal_ = planner_manager_->path_finder_->getPath();
-  shortenPath(ed_->path_next_goal_);
 
-  // Compute time lower bound of yaw and use in trajectory generation
-  double diff = fabs(min_yaw - yaw[0]);
-  const double radius_far = 5.0;
-  const double radius_close = 1.5;
-  const double len = Astar::pathLength(ed_->path_next_goal_);
-  double yaw_time_lb = min(diff, 2 * M_PI - diff) / ViewNode::yd_;
-  double pos_time_lb = len / ViewNode::vm_;
-  double min_time_lb = 0.2 * M_PI / ViewNode::yd_;
-  double time_lb =
-      max(yaw_time_lb,
-          pos_time_lb); // max(max(yaw_time_lb, pos_time_lb), min_time_lb);
+    ed_->path_next_goal_ = planner_manager_->path_finder_->getPath();
+    shortenPath(ed_->path_next_goal_);
 
-  std::cout << "Size of Path_Next_Goal:" << ed_->path_next_goal_.size() << ","
-            << " Path length:" << len << std::endl;
+    // Compute time lower bound of yaw and use in trajectory generation
+    double diff = fabs(min_yaw - yaw[0]);
+    const double radius_far = 5.0;
+    const double radius_close = 1.5;
+    const double len = Astar::pathLength(ed_->path_next_goal_);
+    double yaw_time_lb = min(diff, 2 * M_PI - diff) / ViewNode::yd_;
+    double pos_time_lb = len / ViewNode::vm_;
+    double min_time_lb = 0.2 * M_PI / ViewNode::yd_;
+    double time_lb =
+        max(yaw_time_lb,
+            pos_time_lb); // max(max(yaw_time_lb, pos_time_lb), min_time_lb);
 
-  if (len < radius_far) {
-    // Next viewpoint is very close, no need to search kinodynamic path, just
-    // use waypoints-based optimization
-    planner_manager_->planExploreTraj(ed_->path_next_goal_, vel, acc, time_lb);
-    ed_->next_goal_ = next_pos;
-  } else {
-    // Next viewpoint is far away, select intermediate goal on geometric path
-    // (this also deal with dead end)
-    std::cout << "Far goal." << std::endl;
-    double len2 = 0.0;
-    vector<Eigen::Vector3d> truncated_path = {ed_->path_next_goal_.front()};
-    for (int i = 1; i < ed_->path_next_goal_.size() && len2 < radius_far; ++i) {
-      auto cur_pt = ed_->path_next_goal_[i];
-      len2 += (cur_pt - truncated_path.back()).norm();
-      truncated_path.push_back(cur_pt);
+    std::cout << "Size of Path_Next_Goal:" << ed_->path_next_goal_.size() << ","
+              << " Path length:" << len << std::endl;
+
+    if (len < radius_far) {
+      // Next viewpoint is very close, no need to search kinodynamic path, just
+      // use waypoints-based optimization
+      planner_manager_->planExploreTraj(ed_->path_next_goal_, vel, acc, time_lb);
+      ed_->next_goal_ = next_pos;
+    } else {
+      // Next viewpoint is far away, select intermediate goal on geometric path
+      // (this also deal with dead end)
+      std::cout << "Far goal." << std::endl;
+      double len2 = 0.0;
+      vector<Eigen::Vector3d> truncated_path = {ed_->path_next_goal_.front()};
+      for (int i = 1; i < ed_->path_next_goal_.size() && len2 < radius_far; ++i) {
+        auto cur_pt = ed_->path_next_goal_[i];
+        len2 += (cur_pt - truncated_path.back()).norm();
+        truncated_path.push_back(cur_pt);
+      }
+      ed_->next_goal_ = truncated_path.back();
+      planner_manager_->planExploreTraj(truncated_path, vel, acc, time_lb);
+      // if (!planner_manager_->kinodynamicReplan(
+      //         pos, vel, acc, ed_->next_goal_, Vector3d(0, 0, 0), time_lb))
+      //   return FAIL;
+      // ed_->kino_path_ = planner_manager_->kino_path_finder_->getKinoTraj(0.02);
     }
-    ed_->next_goal_ = truncated_path.back();
-    planner_manager_->planExploreTraj(truncated_path, vel, acc, time_lb);
-    // if (!planner_manager_->kinodynamicReplan(
-    //         pos, vel, acc, ed_->next_goal_, Vector3d(0, 0, 0), time_lb))
-    //   return FAIL;
-    // ed_->kino_path_ = planner_manager_->kino_path_finder_->getKinoTraj(0.02);
+
+    if (planner_manager_->local_data_.position_traj_.getTimeSum() <
+        time_lb - 0.1) {
+      ROS_ERROR("Lower bound not satified!");
+      ROS_ERROR("Yaw_tlb:%f, Pos_tlb:%f, Traj_time:%f", yaw_time_lb, pos_time_lb,
+                planner_manager_->local_data_.position_traj_.getTimeSum());
+    }
+
+    planner_manager_->planYawExplore(yaw, min_yaw, false, ep_->relax_time_);
+    ed_->next_yaw_ = min_yaw;
+
+    double traj_plan_time = (ros::Time::now() - t1).toSec();
+    t1 = ros::Time::now();
+
+    double yaw_time = (ros::Time::now() - t1).toSec();
+    ROS_WARN("Traj: %lf, yaw: %lf", traj_plan_time, yaw_time);
+    double total = (ros::Time::now() - t2).toSec();
+    ROS_WARN("Total time: %lf", total);
+    ROS_ERROR_COND(total > 0.1, "Total time too long!!!");
+    if (next_yaw.size() > 1) {
+      planner_manager_->local_data_.spiral_max_yaw_ = max_yaw;
+      planner_manager_->local_data_.spiral_min_yaw_ = min_yaw;
+      planner_manager_->local_data_.need_spiral_ = true;
+    } else {
+      planner_manager_->local_data_.need_spiral_ = false;
+    }
+    if(go_wait_trav)
+      planner_manager_->local_data_.go_wait_trav_ = true;
+    else
+      planner_manager_->local_data_.go_wait_trav_ = false;
+    return SUCCEED;
   }
-
-  if (planner_manager_->local_data_.position_traj_.getTimeSum() <
-      time_lb - 0.1) {
-    ROS_ERROR("Lower bound not satified!");
-    ROS_ERROR("Yaw_tlb:%f, Pos_tlb:%f, Traj_time:%f", yaw_time_lb, pos_time_lb,
-              planner_manager_->local_data_.position_traj_.getTimeSum());
-  }
-
-  planner_manager_->planYawExplore(yaw, min_yaw, false, ep_->relax_time_);
-
-  double traj_plan_time = (ros::Time::now() - t1).toSec();
-  t1 = ros::Time::now();
-
-  double yaw_time = (ros::Time::now() - t1).toSec();
-  ROS_WARN("Traj: %lf, yaw: %lf", traj_plan_time, yaw_time);
-  double total = (ros::Time::now() - t2).toSec();
-  ROS_WARN("Total time: %lf", total);
-  ROS_ERROR_COND(total > 0.1, "Total time too long!!!");
-  if (next_yaw.size() > 1) {
-    planner_manager_->local_data_.spiral_max_yaw_ = max_yaw;
-    planner_manager_->local_data_.spiral_min_yaw_ = min_yaw;
-    planner_manager_->local_data_.need_spiral_ = true;
-  } else {
-    planner_manager_->local_data_.need_spiral_ = false;
-  }
-  return SUCCEED;
 }
 
 void FastExplorationManager::shortenPath(vector<Vector3d> &path) {
@@ -305,6 +405,17 @@ void FastExplorationManager::shortenPath(vector<Vector3d> &path) {
     short_tour.push_back(path.back());
 
   // Ensure at least three points in the path
+  if (short_tour.size() == 1) {
+    std::cout << "\033[33mshort_tour.size() == 1\033[0m" << std::endl;
+    std::cout << "\033[33m The originial path is " << std::endl;
+    for (int i = 0; i < path.size(); i++) {
+      std::cout << path[i].transpose() << std::endl; 
+    }
+    std::cout << "\033[0m" << std::endl;
+    if (path.size() == 2)
+      path.insert(path.begin() + 1, 0.5 * (path[0] + path[1]));
+    return;
+  }
   if (short_tour.size() == 2)
     short_tour.insert(short_tour.begin() + 1,
                       0.5 * (short_tour[0] + short_tour[1]));
@@ -349,10 +460,12 @@ void FastExplorationManager::findNextCluster(const Vector3d &cur_pos,
       TSP_cost * ViewNode::vm_ + ep_->inertial_cost_offset_) {
     indices = inertial_indices;
     frontier_finder_->getClusterTour(inertial_indices, ed_->global_tour_);
+    frontier_finder_->getClusterTourIdx(inertial_indices, ed_->global_tour_idx_);
     // ROS_WARN("[findNextCluster] Using Inertial tour");
   } else {
     indices = TSP_indices;
     frontier_finder_->getClusterTour(TSP_indices, ed_->global_tour_);
+    frontier_finder_->getClusterTourIdx(TSP_indices, ed_->global_tour_idx_);
     // ROS_WARN("[findNextCluster] Using TSP tour");
   }
 
