@@ -43,7 +43,8 @@ namespace gazebo
         
         // 设置切换周期时间
         this->lastSwitchTime = std::chrono::steady_clock::now();
-        this->switchDuration = std::chrono::seconds(60);
+        this->switchDuration = std::chrono::seconds((rand() % 41) + 20);
+        // this->switchDuration = std::chrono::seconds(85);
 
         this->targetPos = 0;
 
