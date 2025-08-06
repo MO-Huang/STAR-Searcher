@@ -39,7 +39,8 @@ vector<Eigen::Vector3d> traj_cmd_, traj_real_;
 
 // Data for benchmark comparison
 ros::Time start_time, end_time, last_time;
-double energy;
+double energy, actual_flight_time;
+Eigen::Vector3d last_vel = {0, 0, 0};
 
 // Loop correction
 Eigen::Matrix3d R_loop;
@@ -251,6 +252,8 @@ void bsplineCallback(const bspline::BsplineConstPtr& msg) {
   if (start_time.isZero()) {
     ROS_WARN("start flight");
     start_time = ros::Time::now();
+    last_time = start_time;
+    end_time = start_time;
   }
 }
 
@@ -281,13 +284,18 @@ void cmdCallback(const ros::TimerEvent& e) {
     yawdot = 0.0;
 
     // Report info of the whole flight
-    double len = calcPathLength(traj_cmd_);
-    double flight_t = (end_time - start_time).toSec();
-    ROS_WARN_THROTTLE(2, "flight time: %lf, path length: %lf, mean vel: %lf, energy is: % lf ", flight_t,
-                      len, len / flight_t, energy);
+    // double len = calcPathLength(traj_cmd_);
+    // double flight_t = (time_now - start_time).toSec();
+    // ROS_WARN_THROTTLE(1, "flight time: %lf, actual flight time: %lf, path length: %lf, mean vel: %lf, energy is: % lf ", 
+    //                   flight_t, actual_flight_time, len, len / flight_t, energy);
   } else {
     cout << "[Traj server]: invalid time." << endl;
   }
+
+  if (last_vel.norm() > 1e-6) {
+      actual_flight_time += (time_now - last_time).toSec();
+    }
+  double len = calcPathLength(traj_cmd_);
 
   if (isLoopCorrection) {
     pos = R_loop.transpose() * (pos - T_loop);
@@ -314,6 +322,8 @@ void cmdCallback(const ros::TimerEvent& e) {
   cmd.yaw_dot = yawdot;
   pos_cmd_pub.publish(cmd);
 
+  last_vel = vel;
+
   // Draw cmd
   // Eigen::Vector3d dir(cos(yaw), sin(yaw), 0.0);
   // drawCmd(pos, 2 * dir, 2, Eigen::Vector4d(1, 1, 0, 0.7));
@@ -336,6 +346,11 @@ void cmdCallback(const ros::TimerEvent& e) {
     energy += jer.squaredNorm() * dt;
     end_time = ros::Time::now();
   }
+
+  double flight_t = (end_time - start_time).toSec();
+  ROS_WARN_THROTTLE(4, "flight time: %lf, actual flight time: %lf, path length: %lf, mean vel: %lf, energy is: % lf ", 
+                    flight_t, actual_flight_time, len, len / flight_t, energy);
+
   last_time = time_now;
 
   // if (traj_cmd_.size() > 100000)
