@@ -3,7 +3,7 @@
   <arg name="map_size_y" value="30.0" />
   <arg name="map_size_z" value="5.0" />
 
-  <arg name="init_x" value="2.0" />
+  <arg name="init_x" value="5.0" />
   <arg name="init_y" value="6.0" />
   <arg name="init_z" value="1.0" />
   <!-- topic of your odometry such as VIO or LIO -->
