@@ -883,12 +883,12 @@ void FrontierFinder::computeFrontiersToVisit(Eigen::Vector3d cur_pos) {
   int idx = 0;
   for (auto &ft : frontiers_) {
     ft.id_ = idx++;
-    std::cout << ft.id_ << ", ";
+    // std::cout << ft.id_ << ", ";
   }
-  std::cout << "\nnew num: " << new_num << ", new dormant: " << new_dormant_num
-            << std::endl;
-  std::cout << "to visit: " << frontiers_.size()
-            << ", dormant: " << dormant_frontiers_.size() << std::endl;
+  // std::cout << "\nnew num: " << new_num << ", new dormant: " << new_dormant_num
+  //           << std::endl;
+  // std::cout << "to visit: " << frontiers_.size()
+  //           << ", dormant: " << dormant_frontiers_.size() << std::endl;
   double frontier_visit_time_ = (ros::Time::now() - t1).toSec();
   // ROS_WARN("Frontier Visit Time: %lf", frontier_visit_time_);
 }
