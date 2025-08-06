@@ -1471,7 +1471,11 @@
         <parent>world</parent>
         <child>Wall</child>
       </joint>
-      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so"/>
+      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so">
+        <initial_position>0</initial_position>
+        <switch_flag>true</switch_flag>
+        <switch_duration>15</switch_duration>
+      </plugin>
       <static>0</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>8 7 0 0 0 0</pose>
@@ -1664,6 +1668,106 @@
         </link>
         <link name='door'>
           <pose>16 5 1 0 -4e-06 3.14</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_0'>
+        <pose frame=''>3 11.925 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>3 11.925 1.25 -1.57 1.57 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_1'>
+        <pose frame=''>10.925 9.5 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>10.925 9.5 1.25 0 1.57 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_2'>
+        <pose frame=''>11.075 9.5 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>11.075 9.5 1.25 0 1.57 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_3'>
+        <pose frame=''>20 11.925 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>20 11.925 1.25 -1.57 1.57 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_4'>
+        <pose frame=''>20 0.075 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>20 0.075 1.25 -1.57 1.57 -0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_5'>
+        <pose frame=''>13.075 2.5 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>13.075 2.5 1.25 0 1.57 -0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_6'>
+        <pose frame=''>12.925 2.5 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>12.925 2.5 1.25 0 1.57 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_7'>
+        <pose frame=''>8.075 2.5 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>8.075 2.5 1.25 0 1.57 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_8'>
+        <pose frame=''>7.925 2.5 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>7.925 2.5 1.25 0 1.57 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='static_apriltag_9'>
+        <pose frame=''>2 0.075 1.25 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose frame=''>2 0.075 1.25 -1.57 1.57 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -2234,7 +2338,11 @@
         <parent>world</parent>
         <child>Wall</child>
       </joint>
-      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so"/>
+      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so">
+        <initial_position>1.57</initial_position>
+        <switch_flag>true</switch_flag>
+        <switch_duration>15</switch_duration>
+      </plugin>
       <static>0</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>14 7 0 0 0 0</pose>
@@ -2800,7 +2908,11 @@
         <parent>world</parent>
         <child>Wall</child>
       </joint>
-      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so"/>
+      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so">
+        <initial_position>0</initial_position>
+        <switch_flag>true</switch_flag>
+        <switch_duration>15</switch_duration>
+      </plugin>
       <static>0</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>18 9 0 0 0 -1.57</pose>
@@ -3366,7 +3478,11 @@
         <parent>world</parent>
         <child>Wall</child>
       </joint>
-      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so"/>
+      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so">
+        <initial_position>1.57</initial_position>
+        <switch_flag>true</switch_flag>
+        <switch_duration>15</switch_duration>
+      </plugin>
       <static>0</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>5.5 5 0 0 0 3.14</pose>
@@ -3932,7 +4048,11 @@
         <parent>world</parent>
         <child>Wall</child>
       </joint>
-      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so"/>
+      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so">
+        <initial_position>0</initial_position>
+        <switch_flag>true</switch_flag>
+        <switch_duration>15</switch_duration>
+      </plugin>
       <static>0</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>10 5 0 0 0 3.14</pose>
@@ -4498,10 +4618,604 @@
         <parent>world</parent>
         <child>Wall</child>
       </joint>
-      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so"/>
+      <plugin name="wall_and_door_plugin" filename="libDoorControlPlugin.so">
+        <initial_position>0</initial_position>
+        <switch_flag>true</switch_flag>
+        <switch_duration>15</switch_duration>
+      </plugin>
       <static>0</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>16 5 0 0 0 3.14</pose>
+    </model>
+    <model name='static_apriltag_0'>
+      <link name='link'>
+        <pose frame=''>0 0 0 0 1.57 0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse0</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>1.90787 0.108649 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_1'>
+      <link name='link'>
+        <pose frame=''>0 0 0 0 1.57 0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse1</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>1.36256 0.459264 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_2'>
+      <link name='link'>
+        <pose frame=''>0 0 0 0 1.57 0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse2</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>0.80811 0.829943 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_3'>
+      <link name='link'>
+        <pose frame=''>0 0 0 -1.57 1.57 -0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse3</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>3.65849 3.02317 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_4'>
+      <link name='link'>
+        <pose frame=''>0 0 0 0 1.57 0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse4</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>3.93537 3.29316 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_5'>
+      <link name='link'>
+        <pose frame=''>0 0 0 -1.57 1.57 -0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse5</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>5.04082 3.71574 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_6'>
+      <link name='link'>
+        <pose frame=''>0 0 0 -1.57 1.57 -0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse6</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>3.43144 4.34187 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_7'>
+      <link name='link'>
+        <pose frame=''>0 0 0 0 1.57 0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse7</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>3.12393 4.47604 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_8'>
+      <link name='link'>
+        <pose frame=''>0 0 0 0 1.57 0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse7</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>3.12393 4.47604 0 0 -0 0</pose>
+    </model>
+    <model name='static_apriltag_9'>
+      <link name='link'>
+        <pose frame=''>0 0 0 0 1.57 0</pose>
+        <inertial>
+          <mass>0.39</mass>
+          <inertia>
+            <ixx>0.00058</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.00058</iyy>
+            <iyz>0</iyz>
+            <izz>0.00019</izz>
+          </inertia>
+          <pose frame=''>0 0 0 0 -0 0</pose>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.6 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://apriltag/materials/scripts</uri>
+              <uri>model://apriltag/materials/textures</uri>
+              <name>apriltag/Diffuse7</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <gravity>0</gravity>
+      </link>
+      <pose frame=''>0 -0 0 0 -0 0</pose>
+      <static>1</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose frame=''>3.12393 4.47604 0 0 -0 0</pose>
     </model>
     <gui fullscreen='0'>
       <camera name='user_camera'>
