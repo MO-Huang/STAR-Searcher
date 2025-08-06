@@ -161,7 +161,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
       // thread vis_thread(&FastExplorationFSM::visualize, this);
       // vis_thread.detach();
     } else if (res == NO_FRONTIER) {
-      transitState(WAIT_FRONTIER, "FSM");
+      transitState(FINISH, "FSM");
       fd_->static_state_ = true;
     } else if (res == FAIL) {
       // Still in PLAN_TRAJ state, keep replanning
@@ -281,6 +281,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
     }
     if(traversable)
       break;
+    planner_manager_->path_finder_->reset();
     if(planner_manager_->path_finder_->search(pos, expl_manager_->ed_->blocked_seg_end_) == Astar::REACH_END) {
       printf("\033[32mThe blocked seg end [%f, %f, %f] tured traversable.\033[0m\n", expl_manager_->ed_->blocked_seg_end_[0], expl_manager_->ed_->blocked_seg_end_[1], expl_manager_->ed_->blocked_seg_end_[2]);
       transitState(PLAN_TRAJ, "FSM");
