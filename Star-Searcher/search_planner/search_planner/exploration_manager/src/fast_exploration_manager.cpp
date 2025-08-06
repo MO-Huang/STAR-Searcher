@@ -234,7 +234,7 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
               bool found = false;
               // double n = 1.5;
               // next_pos = (n + 1) * blocked_seg[0] - n * blocked_seg[1];
-              next_pos = 2.5 * blocked_seg[0] - 1.5 * blocked_seg[1];
+              next_pos = 2 * blocked_seg[0] -  blocked_seg[1];
               next_pos[2] = pos[2];
               while(!found){
                 bool safe = true;
