@@ -7,16 +7,20 @@ Panels:
         - /Global Options1
         - /Status1
         - /Axes1
+        - /Grid1
         - /LocalMap1/local_map1
+        - /Planning1
+        - /Planning1/bspline_traj1
+        - /Planning1/executed_traj1
+        - /Planning1/position_cmd1
         - /Mapping1/simulation_map1/Autocompute Value Bounds1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /PointCloud22
-        - /PointCloud23
         - /PointCloud24
         - /PointCloud25
         - /VoronoiGraph1
         - /PointCloud28
+        - /Map1
       Splitter Ratio: 0.5
     Tree Height: 263
   - Class: rviz/Selection
@@ -69,7 +73,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 40
+      Plane Cell Count: 60
       Reference Frame: <Fixed Frame>
       Value: true
     - Class: rviz/Group
@@ -171,13 +175,13 @@ Visualization Manager:
     - Class: rviz/Group
       Displays:
         - Class: rviz/Marker
-          Enabled: true
+          Enabled: false
           Marker Topic: /planning_vis/trajectory
           Name: bspline_traj
           Namespaces:
-            B-Spline: true
+            {}
           Queue Size: 100
-          Value: true
+          Value: false
         - Class: rviz/Marker
           Enabled: false
           Marker Topic: /planning_vis/topo_path
@@ -360,7 +364,7 @@ Visualization Manager:
       Axes Radius: 0.10000000149011612
       Class: rviz/Pose
       Color: 0; 0; 255
-      Enabled: true
+      Enabled: false
       Head Length: 0.30000001192092896
       Head Radius: 0.10000000149011612
       Name: Drone Pose
@@ -370,64 +374,14 @@ Visualization Manager:
       Shape: Axes
       Topic: /odom_visualization/pose
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/TF
-      Enabled: true
+      Enabled: false
       Filter (blacklist): ""
       Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        ardrone/base_lidar_support:
-          Value: true
-        ardrone/base_link:
-          Value: true
-        ardrone/base_link_inertia:
-          Value: false
-        ardrone/imu_link:
-          Value: false
-        ardrone/imugt_link:
-          Value: false
-        ardrone/odometry_sensor1:
-          Value: false
-        ardrone/odometry_sensor1_link:
-          Value: false
-        ardrone/odometry_sensorgt_link:
-          Value: false
-        ardrone/rotor_0:
-          Value: false
-        ardrone/rotor_1:
-          Value: false
-        ardrone/rotor_2:
-          Value: false
-        ardrone/rotor_3:
-          Value: false
-        ardrone/velodyne:
-          Value: true
-        ardrone/velodyne_base_link:
-          Value: true
-        camera_bottom_screw_frame:
-          Value: false
-        camera_color_frame:
-          Value: false
-        camera_color_optical_frame:
-          Value: false
-        camera_depth_frame:
-          Value: false
-        camera_depth_optical_frame:
-          Value: false
-        camera_left_ir_frame:
-          Value: false
-        camera_left_ir_optical_frame:
-          Value: false
-        camera_link:
-          Value: true
-        camera_right_ir_frame:
-          Value: false
-        camera_right_ir_optical_frame:
-          Value: false
-        world:
-          Value: true
       Marker Alpha: 1
       Marker Scale: 2
       Name: TF
@@ -435,48 +389,9 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        world:
-          ardrone/base_link:
-            ardrone/base_lidar_support:
-              ardrone/velodyne_base_link:
-                ardrone/velodyne:
-                  {}
-            ardrone/base_link_inertia:
-              {}
-            ardrone/imu_link:
-              {}
-            ardrone/imugt_link:
-              {}
-            ardrone/odometry_sensor1_link:
-              {}
-            ardrone/odometry_sensorgt_link:
-              {}
-            ardrone/rotor_0:
-              {}
-            ardrone/rotor_1:
-              {}
-            ardrone/rotor_2:
-              {}
-            ardrone/rotor_3:
-              {}
-            camera_bottom_screw_frame:
-              camera_link:
-                camera_depth_frame:
-                  camera_color_frame:
-                    camera_color_optical_frame:
-                      {}
-                  camera_depth_optical_frame:
-                    {}
-                  camera_left_ir_frame:
-                    camera_left_ir_optical_frame:
-                      {}
-                  camera_right_ir_frame:
-                    camera_right_ir_optical_frame:
-                      {}
-          ardrone/odometry_sensor1:
-            {}
+        {}
       Update Interval: 0
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -598,23 +513,21 @@ Visualization Manager:
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /planning_vis/hgrid
       Name: Marker
       Namespaces:
-        global_tour: true
-        local_tour: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /planning_vis/viewpoints
       Name: Marker
       Namespaces:
-        frontier_view: true
-        frt_division: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /planning_vis/debug
@@ -744,14 +657,14 @@ Visualization Manager:
       Use rainbow: true
       Value: false
     - Class: VoronoiGraph
-      Enabled: true
+      Enabled: false
       History Length: 1
       Name: VoronoiGraph
-      Path Points Scale: 0.10000000149011612
+      Path Points Scale: 0.20000000298023224
       Queue Size: 10
       Topic: /exploration_node/segments
       Unreliable: false
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -764,7 +677,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -779,7 +692,17 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
+    - Alpha: 0.699999988079071
+      Class: rviz/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: false
+      Name: Map
+      Topic: /nav_msgs_occupancy_grid
+      Unreliable: false
+      Use Timestamp: false
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
@@ -807,7 +730,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 29.81891632080078
+      Distance: 21.79013442993164
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -815,8 +738,8 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 10.309748649597168
-        Y: 1.1150972843170166
+        X: 11.129934310913086
+        Y: 1.1311089992523193
         Z: -2.446559301461093e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
@@ -825,7 +748,7 @@ Visualization Manager:
       Near Clip Distance: 0.009999999776482582
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
-      Yaw: 4.721411228179932
+      Yaw: 4.706414222717285
     Saved:
       - Class: rviz/ThirdPersonFollower
         Distance: 17.48538589477539
@@ -915,7 +838,7 @@ Window Geometry:
   Hide Right Dock: false
   Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd000000040000000000000156000001defc0200000013fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b00000142000000c700fffffffb0000000a005600690065007700730000000289000001dc000000a000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d00650072006100000001d1000000b50000000000000000fb0000000a0064006500700074006801000002fe000000e60000000000000000fb0000000a0049006d0061006700650100000183000000960000001600fffffffc00000440000001030000000000fffffffa000000000100000002fb0000000a0049006d0061006700650000000000ffffffff0000000000000000fb0000000a0049006d0061006700650000000000000003330000000000000000fb00000014005200470042002000430061006d0065007200610100000319000000cb0000000000000000fb0000000a0049006d0061006700650100000319000000cb0000000000000000fb0000000a0049006d00610067006501000003b2000000160000000000000000fb0000000a0049006d00610067006501000003ce000000160000000000000000fb0000000a0049006d0061006700650100000330000001470000000000000000fb0000000a0049006d00610067006501000003e90000015a0000000000000000000000010000010f00000385fc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000006100000003bfc0100000002fb0000000800540069006d00650000000000000006100000035c00fffffffb0000000800540069006d0065010000000000000450000000000000000000000243000001de00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd000000040000000000000156000001defc0200000013fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b00000142000000c700fffffffb0000000a005600690065007700730000000289000001dc000000a000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d00650072006100000001d1000000b50000000000000000fb0000000a0064006500700074006801000002fe000000e60000000000000000fb0000000a0049006d0061006700650100000183000000960000001600fffffffc00000440000001030000000000fffffffa000000000100000002fb0000000a0049006d0061006700650000000000ffffffff0000000000000000fb0000000a0049006d0061006700650000000000000003330000000000000000fb00000014005200470042002000430061006d0065007200610100000319000000cb0000000000000000fb0000000a0049006d0061006700650100000319000000cb0000000000000000fb0000000a0049006d00610067006501000003b2000000160000000000000000fb0000000a0049006d00610067006501000003ce000000160000000000000000fb0000000a0049006d0061006700650100000330000001470000000000000000fb0000000a0049006d00610067006501000003e90000015a0000000000000000000000010000010f00000385fc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000006100000003bfc0100000002fb0000000800540069006d00650000000000000006100000035c00fffffffb0000000800540069006d00650100000000000004500000000000000000000002f4000001de00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -924,6 +847,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 927
-  X: 179
+  Width: 1104
+  X: 145
   Y: 27
