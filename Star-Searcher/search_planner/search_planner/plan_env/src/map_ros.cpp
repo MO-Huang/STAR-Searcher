@@ -290,12 +290,12 @@ void MapROS::cameralidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
     map_->clearAndInflateLocalMap();
     esdf_need_update_ = true;
     local_updated_ = false;
-    nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(20);
-    nav_msgs_occupancy_grid_pub_.publish(grid);
-    map_->vg_->generateGraph(grid);
-    router_->updateMap(map_->vg_->getLongTermMap());
-    router_->updateGraph(map_->vg_->getSegments());
   }
+  nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(17);
+  nav_msgs_occupancy_grid_pub_.publish(grid);
+  map_->vg_->generateGraph(grid);
+  router_->updateMap(map_->vg_->getLongTermMap());
+  router_->updateGraph(map_->vg_->getSegments());
   auto t2 = ros::Time::now();
   float fusion_time = (t2 - t1).toSec();
   // ROS_INFO("Cam_Lidar_Fusion Time: %lf", fusion_time);
