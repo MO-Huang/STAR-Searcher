@@ -1,0 +1,39 @@
+<launch>
+  <arg name="mav_name" default="ardrone"/>
+  <arg name="drone_id" default="1"/>
+  <arg name="enable_logging" default="false" />
+  <arg name="enable_ground_truth" default="true" />
+  <arg name="log_file" default="$(arg mav_name)" />
+
+  <arg name="odometry_topic" default="/ground_truth/odometry" />
+  <arg name="init_x" default="2.0"/>
+  <arg name="init_y" default="6.0"/>
+  <arg name="init_z" default="1.0"/>
+
+
+  <env name="GAZEBO_MODEL_PATH" value="${GAZEBO_MODEL_PATH}:$(find rotors_gazebo)/models"/>
+  <env name="GAZEBO_RESOURCE_PATH" value="${GAZEBO_RESOURCE_PATH}:$(find rotors_gazebo)/models"/>
+
+  <group ns="$(arg mav_name)$(arg drone_id)">
+    <include file="$(find fuae_gazebo)/launch/spawn_mav_single.launch">
+      <arg name="namespace" value="$(arg mav_name)$(arg drone_id)" />
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="odometry_topic" value="$(arg odometry_topic)" />
+      <arg name="model" value="$(find fuae_gazebo)/urdf/bounce_mav_single.gazebo" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)$(arg drone_id)"/>
+      <arg name="x" value="$(arg init_x)"/>
+      <arg name="y" value="$(arg init_y)"/>
+      <arg name="z" value="$(arg init_z)"/>
+      <arg name="roll" value="0.0"/>
+      <arg name="pitch" value="0.0"/>
+      <arg name="yaw" value="0.0"/>
+    </include>
+    
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen"/>
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" output="screen"/>
+  </group>
+
+
+</launch>
