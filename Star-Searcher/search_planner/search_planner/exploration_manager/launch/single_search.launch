@@ -1,0 +1,337 @@
+<launch>
+  <arg name="drone_num" default="1"/>
+  <arg name="drone_id" default="1"/>
+  <arg name="map_size_x" default="40.0" />
+  <arg name="map_size_y" default="40.0" />
+  <arg name="map_size_z" default="5.0" />
+
+  <arg name="init_x" default="6.0" />
+  <arg name="init_y" default="8.0" />
+  <arg name="init_z" default="1.0" />
+
+  <arg name="box_min_x" value="-5.0"/>
+  <arg name="box_min_y" value="-5.0"/>
+  <arg name="box_min_z" value="0.2"/>
+  <arg name="box_max_x" value="20.0"/>
+  <arg name="box_max_y" value="20.0"/>
+  <arg name="box_max_z" value="1.6"/>
+  <arg name="observe_update_dist" value="8.0" />
+  <arg name="belief_dist" value="3.5" />
+  <arg name="sensor_pose_topic" value="/drone_$(arg drone_id)/pcl_render_node/sensor_pose" />
+  <arg name="depth_topic" value="none" />
+  <arg name="cloud_topic" value="/drone_$(arg drone_id)/pcl_render_node/cloud" />
+  <arg name="cx" value="321.04638671875" />
+  <arg name="cy" value="243.44969177246094" />
+  <arg name="fx" value="387.229248046875" />
+  <arg name="fy" value="387.229248046875" />
+  <arg name="max_vel" value="2.0" />
+  <arg name="max_acc" value="1.5" />
+  <arg name="max_yaw_change" value="$(eval 60 * 3.1415926 / 180.0)" />
+  <arg name="use_perception_aware_local_planner" value="false" />
+
+  <node pkg="exploration_manager" name="drone_$(arg drone_id)_exploration_node" type="exploration_node" output="screen">
+    <remap from="/odom_world" to="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <remap from="/map_ros/pose" to="$(arg sensor_pose_topic)" />
+    <remap from="/map_ros/depth" to="$(arg depth_topic)" />
+    <remap from="/map_ros/cloud" to="$(arg cloud_topic)" />
+    <remap from="/ardrone/ground_truth/odometry" to="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <remap from="/sdf_map/occupancy_all" to="/drone_$(arg drone_id)/sdf_map/occupancy_all" />
+    <remap from="/sdf_map/occupancy_local" to="/drone_$(arg drone_id)/sdf_map/occupancy_local" />
+    <remap from="/sdf_map/occupancy_local_inflate" to="/drone_$(arg drone_id)/sdf_map/occupancy_local_inflate" />
+    <remap from="/sdf_map/unknown" to="/drone_$(arg drone_id)/sdf_map/unknown" />
+    <remap from="/sdf_map/esdf" to="/drone_$(arg drone_id)/sdf_map/esdf" />
+    <remap from="/sdf_map/update_range" to="/drone_$(arg drone_id)/sdf_map/update_range" />
+    <remap from="/sdf_map/depth_cloud" to="/drone_$(arg drone_id)/sdf_map/depth_cloud" />
+    <remap from="/cam_lidar/min_observed_dist" to="/drone_$(arg drone_id)/cam_lidar/min_observed_dist" />
+    <remap from="/cam_lidar/under_observed" to="/drone_$(arg drone_id)/cam_lidar/under_observed" />
+    <remap from="/cam_lidar/semantic" to="/drone_$(arg drone_id)/cam_lidar/semantic" />
+    <remap from="/cam_lidar/freshness" to="/drone_$(arg drone_id)/cam_lidar/freshness" />
+    <remap from="/cam_lidar/debug" to="/drone_$(arg drone_id)/cam_lidar/debug" />
+    <remap from="/cam_lidar/debug_SDF_pts" to="/drone_$(arg drone_id)/cam_lidar/debug_SDF_pts" />
+    <remap from="/result/voxel_ratio" to="/drone_$(arg drone_id)/result/voxel_ratio" />
+    <remap from="/nav_msgs_occupancy_grid" to="/drone_$(arg drone_id)/nav_msgs_occupancy_grid" />
+    <remap from="/frontier/fov" to="/drone_$(arg drone_id)/frontier/fov" />
+    <remap from="/frontier_debug/debug_before" to="/drone_$(arg drone_id)/frontier_debug/debug_before" />
+    <remap from="/frontier_debug/debug_after" to="/drone_$(arg drone_id)/frontier_debug/debug_after" />
+    <remap from="/frontier_finder/marker" to="/drone_$(arg drone_id)/frontier_finder/marker" />
+    <remap from="/planning/replan" to="/drone_$(arg drone_id)/planning/replan" />
+    <remap from="/planning/new" to="/drone_$(arg drone_id)/planning/new" />
+    <remap from="/planning/bspline" to="/drone_$(arg drone_id)/planning/bspline" />
+    <remap from="/start_flag" to="/drone_$(arg drone_id)/start_flag" />
+    <remap from="/planning/pos_cmd" to="/drone_$(arg drone_id)/planning/pos_cmd" />
+    <remap from="/planning_vis/trajectory" to="/drone_$(arg drone_id)/planning_vis/trajectory" />
+    <remap from="/planning_vis/topo_path" to="/drone_$(arg drone_id)/planning_vis/topo_path" />
+    <remap from="/planning_vis/prediction" to="/drone_$(arg drone_id)/planning_vis/prediction" />
+    <remap from="/planning_vis/visib_constraint" to="/drone_$(arg drone_id)/planning_vis/visib_constraint" />
+    <remap from="/planning_vis/frontier" to="/drone_$(arg drone_id)/planning_vis/frontier" />
+    <remap from="/planning_vis/yaw" to="/drone_$(arg drone_id)/planning_vis/yaw" />
+    <remap from="/planning_vis/viewpoints" to="/drone_$(arg drone_id)/planning_vis/viewpoints" />
+    <remap from="/planning_vis/hgrid" to="/drone_$(arg drone_id)/planning_vis/hgrid" />
+    <remap from="/planning_vis/debug" to="/drone_$(arg drone_id)/planning_vis/debug" />
+    <remap from="/planning_vis/view_debug" to="/drone_$(arg drone_id)/planning_vis/view_debug" />
+    <remap from="/planning_vis/frt_debug" to="/drone_$(arg drone_id)/planning_vis/frt_debug" />
+    <remap from="/planning_vis/dormant_frt_debug" to="/drone_$(arg drone_id)/planning_vis/dormant_frt_debug" />
+    <remap from="/heading_planner/frontier" to="/drone_$(arg drone_id)/heading_planner/frontier" />
+    <remap from="/heading_planner/visib" to="/drone_$(arg drone_id)/heading_planner/visib" />
+    <remap from="/heading_planner/box" to="/drone_$(arg drone_id)/heading_planner/box" />
+    <remap from="/waypoint_generator/waypoints" to="/drone_$(arg drone_id)_waypoint_generator/waypoints" />
+    
+    <param name="sdf_map/resolution" value="0.1" />
+    <param name="sdf_map/map_size_x" value="$(arg map_size_x)" />
+    <param name="sdf_map/map_size_y" value="$(arg map_size_y)" />
+    <param name="sdf_map/map_size_z" value="$(arg map_size_z)" />
+    <!-- <param name="sdf_map/obstacles_inflation" value="0.099" />  -->
+    <param name="sdf_map/obstacles_inflation" value="0.08" />
+    <param name="sdf_map/local_bound_inflate" value="0.5" />
+    <param name="sdf_map/local_map_margin" value="50" />
+    <param name="sdf_map/ground_height" value="-1.0" />
+    <param name="sdf_map/default_dist" value="0.0" />
+
+    <param name="sdf_map/p_hit" value="0.7" />
+    <param name="sdf_map/p_miss" value="0.492" />
+    <param name="sdf_map/p_min" value="0.12" />
+    <param name="sdf_map/p_max" value="0.90" />
+    <param name="sdf_map/p_occ" value="0.80" />
+    <param name="sdf_map/min_ray_length" value="0.2" />
+    <param name="sdf_map/max_ray_length" value="$(arg observe_update_dist)" />
+    <param name="sdf_map/virtual_ceil_height" value="-10" />
+    <!-- <param name="sdf_map/fading_time" value="4" /> -->
+    <param name="sdf_map/fading_time" value="0" />
+    <param name="sdf_map/optimistic" value="false" type="bool" />
+    <param name="sdf_map/signed_dist" value="false" type="bool" />
+    <param name="sdf_map/box_min_x" value="$(arg box_min_x)" type="double" />
+    <param name="sdf_map/box_min_y" value="$(arg box_min_y)" type="double" />
+    <param name="sdf_map/box_min_z" value="$(arg box_min_z)" type="double" />
+    <param name="sdf_map/box_max_x" value="$(arg box_max_x)" type="double" />
+    <param name="sdf_map/box_max_y" value="$(arg box_max_y)" type="double" />
+    <param name="sdf_map/box_max_z" value="$(arg box_max_z)" type="double" />
+    <param name="sdf_map/belief_dist" value="$(arg belief_dist)" type="double" />
+
+    <!-- VoronoiGenerator -->
+    <param name="loop_rate" value="0.5" />
+    <param name="publish_voronoi_map_image" value="false" />
+    <param name="map_inflation" value="0.0" />
+    <param name="segment_length" value="1.0" />
+    <param name="opt_crossings" value="0.4" />
+    <param name="opt_end_segments" value="0.2" />
+    <param name="graph_cache_path" value="/home/max/star_searcher_ws/src/STAR-Searcher/Star-Searcher/search_planner/search_planner/tuw_multi_robot/tuw_multi_robot/tuw_voronoi_graph/tmp" />
+    <param name="custom_graph_path" value="" />
+    <!-- <remap from="/map" to="/nav_msgs_occupancy_grid" /> -->
+
+    <param name="map_ros/cx" value="$(arg cx)" />
+    <param name="map_ros/cy" value="$(arg cy)" />
+    <param name="map_ros/fx" value="$(arg fx)" />
+    <param name="map_ros/fy" value="$(arg fy)" />
+    <param name="map_ros/depth_filter_maxdist" value="5.0" />
+    <param name="map_ros/depth_filter_mindist" value="0.2" />
+    <param name="map_ros/depth_filter_margin" value="2" />
+    <param name="map_ros/k_depth_scaling_factor" value="1000.0" />
+    <param name="map_ros/skip_pixel" value="2" />
+    <param name="map_ros/esdf_slice_height" value="0.3" />
+    <param name="map_ros/visualization_truncate_height" value="10.09" />
+    <param name="map_ros/visualization_truncate_low" value="0.11" />
+    <param name="map_ros/show_occ_time" value="false" />
+    <param name="map_ros/show_esdf_time" value="false" />
+    <param name="map_ros/show_all_map" value="true" />
+    <param name="map_ros/frame_id" value="world" />
+    <param name="map_ros/semantic_mode" value="false" />
+
+    <!-- Camera_Lidar_Fusion-->
+    <param name="map_ros/camera_lidar_fusion/fx" type="double" value="1386.4139404296875" />
+    <param name="map_ros/camera_lidar_fusion/fy" type="double" value="1386.4139404296875" />
+    <param name="map_ros/camera_lidar_fusion/cx" type="double" value="960.0" />
+    <param name="map_ros/camera_lidar_fusion/cy" type="double" value="540.0" />
+    <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/ardrone$(arg drone_id)/velodyne_points" />
+    <!-- <param name="map_ros/camera_lidar_fusion/ptcloud_topic" type="str" value="/velodyne_points_semantic" /> -->
+    <param name="map_ros/camera_lidar_fusion/image_topic" type="str" value="/ardrone$(arg drone_id)/camera/color/image_raw" />
+    <param name="map_ros/camera_lidar_fusion/lidar_tf_target_frame" type="str" value="world" />
+    <param name="map_ros/camera_lidar_fusion/lidar_tf_source_frame" type="str" value="ardrone$(arg drone_id)/velodyne" />
+    <param name="map_ros/camera_lidar_fusion/observe_update_dist" type="double" value="$(arg observe_update_dist)" />
+
+    <!-- Fsm -->
+    <param name="fsm/thresh_replan1" value="0.5" type="double" />
+    <param name="fsm/thresh_replan2" value="0.5" type="double" /> 
+    <param name="fsm/thresh_replan3" value="1.2" type="double" />
+    <param name="fsm/replan_time" value="0.2" type="double" />
+    <param name="fsm/show_tag" value="false" />
+
+    <!-- Exploration manager -->
+    <param name="exploration/refine_local" value="true" type="bool" />
+    <param name="exploration/refined_num" value="1" type="int" />
+    <param name="exploration/refined_radius" value="5.0" type="double" />
+    <param name="exploration/max_decay" value="0.8" type="double" />
+    <param name="exploration/top_view_num" value="1" type="int" />
+    <param name="exploration/vm" value="$(eval 1.0 * arg('max_vel'))" type="double" />
+    <param name="exploration/am" value="$(eval 1.0 * arg('max_acc'))" type="double" />
+    <param name="exploration/yd" value="$(arg max_yaw_change)" type="double" />
+    <param name="exploration/ydd" value="$(eval 0 * 3.1415926 / 180.0)" type="double" />
+    <param name="exploration/w_dir" value="1.5" type="double" />
+    <param name="exploration/tsp_dir" value="$(find lkh_tsp_solver)/resource" type="string" />
+    <param name="exploration/relax_time" value="1.0" type="double" />
+    <param name="exploration/alc_cp_search_range" value="10" type="int" />
+    <param name="exploration/alc_cost_scale" value="-1.0" type="double" />
+    <param name="exploration/perception_aware_local" value="$(arg use_perception_aware_local_planner)" type="bool" />
+    <param name="exploration/feature_max_dist" value="2.0" type="double" />
+    <param name="exploration/inertial_cost_offset" value="5.0" type="double" />
+
+    <param name="frontier/cluster_min" value="80" type="int" />
+    <param name="frontier/cluster_size_xy" value="4.0" type="double" />
+    <param name="frontier/cluster_size_z" value="2.0" type="double" />
+    <param name="frontier/min_candidate_dist" value="0.75" type="double" />
+    <param name="frontier/min_candidate_clearance" value="0.3" type="double" />
+    <param name="frontier/candidate_dphi" value="$(eval 20 * 3.1415926 / 180.0)" type="double" />
+    <param name="frontier/candidate_rnum" value=" 3" type="int" />
+    <param name="frontier/candidate_rmin" value="0.5" type="double" />
+    <param name="frontier/candidate_rmax" value="3.0" type="double" />
+    <param name="frontier/down_sample" value="2" type="int" />
+    <param name="frontier/min_visib_num" value="60" type="int" />
+    <param name="frontier/min_view_finish_fraction" value="0.5" type="double" />
+    <param name="frontier/tsp_dir" value="$(find lkh_tsp_solver)/resource" type="string" />
+    <param name="frontier/frt_cluster_radius" value="3.0" type="double" />
+
+    <!-- Perceptionutils -->
+    <param name="perception_utils/top_angle" value="0.371" type="double" />
+    <param name="perception_utils/left_angle" value="0.625" type="double" />
+    <param name="perception_utils/right_angle" value="0.625" type="double" />
+    <param name="perception_utils/max_dist" value="4.5" type="double" />
+    <param name="perception_utils/vis_dist" value="3.0" type="double" />
+
+
+    <param name="heading_planner/yaw_diff" value="$(eval 30 * 3.1415926 / 180.0)" type="double" />
+    <param name="heading_planner/half_vert_num" value="5" type="int" />
+    <param name="heading_planner/lambda1" value="2.0" type="double" />
+    <param name="heading_planner/lambda2" value="1.0" type="double" />
+    <param name="heading_planner/max_yaw_rate" value="$(eval 5 * 3.1415926 / 180.0)" type="double" />
+    <param name="heading_planner/w" value="20000.0" type="double" />
+    <param name="heading_planner/weight_type" value="1" type="double" />
+    <!-- planner manager -->
+    <!-- <param name="manager/max_vel" value="$(arg max_vel)" type="double"/> -->
+    <param name="manager/max_vel" value="$(arg max_vel)" type="double" />
+    <param name="manager/max_acc" value="$(arg max_acc)" type="double" />
+    <param name="manager/max_jerk" value="4" type="double" />
+    <param name="manager/dynamic_environment" value="0" type="int" />
+    <param name="manager/local_segment_length" value="6.0" type="double" />
+    <param name="manager/clearance_threshold" value="0.2" type="double" />
+    <param name="manager/control_points_distance" value="0.35" type="double" />
+    <param name="manager/use_geometric_path" value="true" type="bool" />
+    <param name="manager/use_kinodynamic_path" value="true" type="bool" />
+    <param name="manager/use_topo_path" value="true" type="bool" />
+    <param name="manager/use_optimization" value="true" type="bool" />
+    <param name="manager/use_active_perception" value="true" type="bool" />
+    <param name="manager/min_time" value="true" type="bool" />
+
+    <!-- kinodynamic path searching -->
+    <param name="search/max_tau" value="0.8" type="double" />
+    <param name="search/init_max_tau" value="1.0" type="double" />
+    <param name="search/max_vel" value="$(arg max_vel)" type="double" />
+    <param name="search/vel_margin" value="0.25" type="double" />
+    <param name="search/max_acc" value="$(arg max_acc)" type="double" />
+    <param name="search/w_time" value="10.0" type="double" />
+    <param name="search/horizon" value="5.0" type="double" />
+    <param name="search/lambda_heu" value="10.0" type="double" />
+    <param name="search/resolution_astar" value="0.025" type="double" />
+    <param name="search/time_resolution" value="0.8" type="double" />
+    <param name="search/margin" value="0.2" type="double" />
+    <param name="search/allocate_num" value="100000" type="int" />
+    <param name="search/check_num" value="10" type="int" />
+    <param name="search/optimistic" value="false" type="bool" />
+
+    <param name="astar/lambda_heu" value="1.0" type="double" />
+    <param name="astar/resolution_astar" value="0.3" type="double" />
+    <param name="astar/allocate_num" value="100000" type="int" />
+    <param name="astar/max_search_time" value="0.001" type="double" />
+    <param name="astar/max_search_time_unknown" value="0.0001" type="double" />
+    <!-- trajectory optimization -->
+    <param name="optimization/ld_smooth" value="20.0" type="double" />
+    <param name="optimization/ld_dist" value="50.0" type="double" />
+    <param name="optimization/ld_feasi" value="10.0" type="double" />
+    <param name="optimization/ld_start" value="120.0" type="double" />
+    <param name="optimization/ld_end" value="50.0" type="double" />
+    <param name="optimization/ld_guide" value="1.5" type="double" />
+    <param name="optimization/ld_waypt" value="0.3" type="double" />
+    <param name="optimization/ld_view" value="0.0" type="double" />
+    <param name="optimization/ld_time" value="20.0" type="double" />
+    <param name="optimization/ld_yaw_feasi" value="0.0" type="double" />
+
+    <param name="optimization/dist0" value="0.7" type="double" />
+    <param name="optimization/max_vel" value="$(arg max_vel)" type="double" />
+    <param name="optimization/max_acc" value="$(arg max_acc)" type="double" />
+    <param name="optimization/max_yaw_change" value="$(arg max_yaw_change)" type="double" />
+    <param name="optimization/algorithm1" value="15" type="int" />
+    <param name="optimization/algorithm2" value="11" type="int" />
+    <param name="optimization/max_iteration_num1" value="2" type="int" />
+    <param name="optimization/max_iteration_num2" value="2000" type="int" />
+    <param name="optimization/max_iteration_num3" value="200" type="int" />
+    <param name="optimization/max_iteration_num4" value="200" type="int" />
+
+    <param name="optimization/max_iteration_time1" value="0.0001" type="double" />
+    <param name="optimization/max_iteration_time2" value="0.005" type="double" />
+    <param name="optimization/max_iteration_time3" value="0.003" type="double" />
+    <param name="optimization/max_iteration_time4" value="0.003" type="double" />
+    <param name="bspline/limit_vel" value="$(arg max_vel)" type="double" />
+    <param name="bspline/limit_acc" value="$(arg max_acc)" type="double" />
+    <param name="bspline/limit_ratio" value="1.1" type="double" />
+
+  </node>
+
+  <!-- trajectory server -->
+  <node pkg="plan_manage" name="drone_$(arg drone_id)_traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="/drone_$(arg drone_id)/planning/pos_cmd" />
+    <remap from="/planning/bspline" to="/drone_$(arg drone_id)/planning/bspline" />
+    <remap from="/planning/replan" to="/drone_$(arg drone_id)/planning/replan" />
+    <remap from="/planning/new" to="/drone_$(arg drone_id)/planning/new" />
+    <remap from="/odom_world" to="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <remap from="/loop_fusion/pg_T_vio" to="/drone_$(arg drone_id)/loop_fusion/pg_T_vio" />
+    <remap from="/planning/position_cmd_vis" to="/drone_$(arg drone_id)/planning/position_cmd_vis" />
+    <remap from="/planning/travel_traj" to="/drone_$(arg drone_id)/planning/travel_traj" />
+    <remap from="/frontier/fov" to="/drone_$(arg drone_id)/frontier/fov" />
+
+    <remap from="/odom_world" to="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <param name="traj_server/time_forward" value="1.5" type="double" />
+    <param name="traj_server/pub_traj_id" value="4" type="int" />
+    <param name="traj_server/init_x" value="$(arg init_x)" type="double" />
+    <param name="traj_server/init_y" value="$(arg init_y)" type="double" />
+    <param name="traj_server/init_z" value="$(arg init_z)" type="double" />
+
+    <param name="perception_utils/top_angle" value="0.56125" type="double" />
+    <param name="perception_utils/left_angle" value="0.69222" type="double" />
+    <param name="perception_utils/right_angle" value="0.68901" type="double" />
+    <param name="perception_utils/max_dist" value="4.5" type="double" />
+    <param name="perception_utils/vis_dist" value="1.0" type="double" />
+
+  </node>
+
+  <node pkg="exploration_manager" name="drone_$(arg drone_id)_gazebo_control" type="gazebo_control" output="log">
+    <param name="init_x" value="$(arg init_x)" />
+    <param name="init_y" value="$(arg init_y)" />
+    <param name="init_z" value="$(arg init_z)" />
+    <param name="model_name" value="ardrone$(arg drone_id)" />
+    <remap from="~command" to="/drone_$(arg drone_id)/planning/pos_cmd" />
+    <remap from="/start_flag" to="/drone_$(arg drone_id)/start_flag" />
+  </node>
+
+  <!-- sensor_pose_trans -->
+  <node pkg="sensor_pose_trans" type="sensor_pose_trans_node" name="drone_$(arg drone_id)_sensor_pose_trans_node"
+    output="log">
+    <param name="estimation_rate" value="30.0" />
+    <remap from="~odometry" to="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <remap from="/pcl_render_node/sensor_pose" to="/drone_$(arg drone_id)/pcl_render_node/sensor_pose" />
+  </node>
+
+
+  <node pkg="waypoint_generator" name="drone_$(arg drone_id)_waypoint_generator" type="waypoint_generator" output="log">
+    <remap from="~odom" to="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <remap from="~goal" to="/move_base_simple/goal" />
+    <remap from="~traj_start_trigger" to="/traj_start_trigger" />
+    <param name="waypoint_type" value="point" />
+  </node>
+
+  <include file="$(find exploration_manager)/launch/single_uav_simulation.launch">
+    <arg name="drone_id" value="$(arg drone_id)"/>
+    <arg name="odometry_topic" value="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <arg name="init_x" value="$(arg init_x)"/>
+    <arg name="init_y" value="$(arg init_y)"/>
+    <arg name="init_z" value="$(arg init_z)"/>
+  </include>
+
+</launch>
