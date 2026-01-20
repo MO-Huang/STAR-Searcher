@@ -14,6 +14,7 @@
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
 #include <tf/transform_datatypes.h>
+#include <string>
 using namespace std;
 
 ros::Subscriber _cmd_sub, _cllick_sub;
@@ -23,6 +24,7 @@ ros::ServiceClient client;
 
 quadrotor_msgs::PositionCommand _cmd;
 double _init_x, _init_y, _init_z;
+string _model_name;
 double _init_roll = 0.0, _init_pitch = 0.0, _init_yaw = 0.0;
 bool rcv_cmd = false;
 bool rcv_trigger = false;
@@ -43,7 +45,7 @@ void rcvPosCmdCallBack(const quadrotor_msgs::PositionCommand cmd) {
 void pubOdom() //通过调用gazebo相关接口的方式发布无人机odom
 {
   gazebo_msgs::ModelState pose;
-  pose.model_name = "ardrone";
+  pose.model_name = _model_name;
   pose.reference_frame = "world";
   if (rcv_cmd && rcv_trigger) {
     pose.pose.position.x = _cmd.position.x;
@@ -109,6 +111,7 @@ int main(int argc, char **argv) {
   n.param("init_x", _init_x, 0.0);
   n.param("init_y", _init_y, 0.0);
   n.param("init_z", _init_z, 0.0);
+  n.param("model_name", _model_name, std::string("ardrone"));
 
   _cmd_sub = n.subscribe("command", 1, rcvPosCmdCallBack);
   _cllick_sub = n.subscribe("/move_base_simple/goal", 10, clickSub);
