@@ -3,7 +3,7 @@
   <arg name="map_size_y" value="40.0"/>
   <arg name="map_size_z" value="5.0"/>
 
-  <arg name="drone_num" value="2" />
+  <arg name="drone_num" value="3" />
 
   <include file="$(find exploration_manager)/launch/single_search.launch">
     <arg name="drone_id" value="1"/>

@@ -35,6 +35,10 @@
     <remap from="/map_ros/depth" to="$(arg depth_topic)" />
     <remap from="/map_ros/cloud" to="$(arg cloud_topic)" />
     <remap from="/ardrone/ground_truth/odometry" to="/ardrone$(arg drone_id)/ground_truth/odometry" />
+    <remap from="/multi_map_manager/chunk_stamps_send" to="/multi_map_manager/chunk_stamps" />
+    <remap from="/multi_map_manager/chunk_data_send" to="/multi_map_manager/chunk_data" />
+    <remap from="/multi_map_manager/chunk_stamps_recv" to="/multi_map_manager/chunk_stamps" />
+    <remap from="/multi_map_manager/chunk_data_recv" to="/multi_map_manager/chunk_data" />
     <remap from="/sdf_map/occupancy_all" to="/drone_$(arg drone_id)/sdf_map/occupancy_all" />
     <remap from="/sdf_map/occupancy_local" to="/drone_$(arg drone_id)/sdf_map/occupancy_local" />
     <remap from="/sdf_map/occupancy_local_inflate" to="/drone_$(arg drone_id)/sdf_map/occupancy_local_inflate" />
@@ -173,6 +177,8 @@
     <param name="exploration/perception_aware_local" value="$(arg use_perception_aware_local_planner)" type="bool" />
     <param name="exploration/feature_max_dist" value="2.0" type="double" />
     <param name="exploration/inertial_cost_offset" value="5.0" type="double" />
+    <param name="exploration/drone_id" value="$(arg drone_id)" type="int" />
+    <param name="exploration/drone_num" value="$(arg drone_num)" type="int" />
 
     <param name="frontier/cluster_min" value="80" type="int" />
     <param name="frontier/cluster_size_xy" value="4.0" type="double" />

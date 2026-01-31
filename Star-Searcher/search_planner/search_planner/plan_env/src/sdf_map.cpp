@@ -2,6 +2,7 @@
 #include "plan_env/map_ros.h"
 #include <memory>
 #include <plan_env/raycast.h>
+#include <plan_env/multi_map_manager.h>
 
 namespace fast_planner {
 SDFMap::SDFMap() {}
@@ -13,6 +14,7 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   md_.reset(new MapData);
   mr_.reset(new MapROS);
   vg_ = std::make_unique<tuw_graph::VoronoiGeneratorNode>(nh);
+  mm_.reset(new MultiMapManager);
 
   // Params of map properties
   double x_size, y_size, z_size;
@@ -108,8 +110,17 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   mr_->node_ = nh;
   mr_->init();
 
+  mm_->setMap(this);
+  mm_->node_ = nh;
+  mm_->init();
+
   caster_.reset(new RayCaster);
   caster_->setParams(mp_->resolution_, mp_->map_origin_);
+
+  for (int i = 0; i < 3; ++i) {
+    md_->all_min_[i] = 1000000;
+    md_->all_max_[i] = -1000000;
+  }
 
   debug_pts_pub_ =
       nh.advertise<sensor_msgs::PointCloud2>("/cam_lidar/debug_SDF_pts", 20);
@@ -490,8 +501,11 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
   for (int k = 0; k < 3; ++k) {
     md_->update_min_[k] = min(update_min[k], md_->update_min_[k]);
     md_->update_max_[k] = max(update_max[k], md_->update_max_[k]);
+    md_->all_min_[k] = min(update_min[k], md_->all_min_[k]);
+    md_->all_max_[k] = max(update_max[k], md_->all_max_[k]);
   }
 
+  vector<uint32_t> new_voxel_ids_;
   while (!md_->cache_voxel_.empty()) {
     int adr = md_->cache_voxel_.front();
     md_->cache_voxel_.pop();
@@ -499,14 +513,18 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
                                  ? mp_->prob_hit_log_
                                  : mp_->prob_miss_log_;
     md_->count_hit_[adr] = md_->count_miss_[adr] = 0;
-    if (md_->occupancy_buffer_[adr] < mp_->clamp_min_log_ - 1e-3)
+    if (md_->occupancy_buffer_[adr] < mp_->clamp_min_log_ - 1e-3) {
       md_->occupancy_buffer_[adr] = mp_->min_occupancy_log_;
+      new_voxel_ids_.push_back(adr);
+    }
 
     md_->occupancy_buffer_[adr] =
         std::min(std::max(md_->occupancy_buffer_[adr] + log_odds_update,
                           mp_->clamp_min_log_),
                  mp_->clamp_max_log_);
   }
+
+  mm_->updateMapChunk(new_voxel_ids_);
 }
 
 void SDFMap::inputCamLidarSemanticPointCloud(const Eigen::MatrixXd &points,

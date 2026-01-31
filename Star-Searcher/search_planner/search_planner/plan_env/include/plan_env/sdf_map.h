@@ -29,6 +29,7 @@ struct MapParam;
 struct MapData;
 class MapROS;
 class camlidFusion;
+class MultiMapManager;
 class SDFMap {
 public:
   SDFMap();
@@ -99,6 +100,10 @@ public:
   double getZ();
   double getBeliefDist();
   MapROS* getMapROS() {return mr_.get();};
+
+  // Swarm
+  shared_ptr<MultiMapManager> mm_;
+  friend MultiMapManager;
 
 private:
   void clearAndInflateLocalMap();
@@ -178,6 +183,7 @@ struct MapData {
   queue<int> cache_semantic_voxel_;
   Eigen::Vector3i local_bound_min_, local_bound_max_;
   Eigen::Vector3d update_min_, update_max_;
+  Eigen::Vector3d all_min_, all_max_;
   bool reset_updated_box_;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

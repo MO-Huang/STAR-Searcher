@@ -526,20 +526,30 @@ void MapROS::proessDepthImage() {
 void MapROS::publishMapAll() {
   pcl::PointXYZ pt;
   pcl::PointCloud<pcl::PointXYZ> cloud1, cloud2;
-  for (int x = map_->mp_->box_min_(0) /* + 1 */; x < map_->mp_->box_max_(0);
-       ++x)
-    for (int y = map_->mp_->box_min_(1) /* + 1 */; y < map_->mp_->box_max_(1);
-         ++y)
-      for (int z = map_->mp_->box_min_(2) /* + 1 */; z < map_->mp_->box_max_(2);
-           ++z) {
+
+  // for (int x = map_->mp_->box_min_(0) - 20; x < map_->mp_->box_max_(0) + 20; ++x)
+  //   for (int y = map_->mp_->box_min_(1) - 20; y < map_->mp_->box_max_(1) + 20; ++y)
+  //     for (int z = map_->mp_->box_min_(2) /* + 1 */; z < map_->mp_->box_max_(2); ++z) {
+  Eigen::Vector3i min_idx, max_idx;
+  map_->posToIndex(map_->md_->all_min_, min_idx);
+  map_->posToIndex(map_->md_->all_max_, max_idx);
+
+  map_->boundIndex(min_idx);
+  map_->boundIndex(max_idx);
+  // for (int k = 0; k < 2; ++k) {
+  //   min_idx(k) = max(min(min_idx(k), map_->mp_->box_max_(k) - 1), map_->mp_->box_min_(k));
+  //   max_idx(k) = max(min(max_idx(k), map_->mp_->box_max_(k) - 1), map_->mp_->box_min_(k));
+  // }
+
+  for (int x = min_idx[0]; x <= max_idx[0]; ++x)
+    for (int y = min_idx[1]; y <= max_idx[1]; ++y)
+      for (int z = min_idx[2]; z <= max_idx[2]; ++z) {
         if (map_->md_->occupancy_buffer_[map_->toAddress(x, y, z)] >
             map_->mp_->min_occupancy_log_) {
           Eigen::Vector3d pos;
           map_->indexToPos(Eigen::Vector3i(x, y, z), pos);
-          if (pos(2) > visualization_truncate_height_)
-            continue;
-          if (pos(2) < visualization_truncate_low_)
-            continue;
+          if (pos(2) > visualization_truncate_height_) continue;
+          if (pos(2) < visualization_truncate_low_) continue;
           pt.x = pos(0);
           pt.y = pos(1);
           pt.z = pos(2);
@@ -554,25 +564,21 @@ void MapROS::publishMapAll() {
   pcl::toROSMsg(cloud1, cloud_msg);
   map_all_pub_.publish(cloud_msg);
 
-  // Output time and known volumn
-  double time_now = (ros::Time::now() - map_start_time_).toSec();
-  double known_volumn = 0;
+  // // Output time and known volumn
+  // double time_now = (ros::Time::now() - map_start_time_).toSec();
+  // double known_volumn = 0;
 
-  for (int x = map_->mp_->box_min_(0) /* + 1 */; x < map_->mp_->box_max_(0);
-       ++x)
-    for (int y = map_->mp_->box_min_(1) /* + 1 */; y < map_->mp_->box_max_(1);
-         ++y)
-      for (int z = map_->mp_->box_min_(2) /* + 1 */; z < map_->mp_->box_max_(2);
-           ++z) {
-        if (map_->md_->occupancy_buffer_[map_->toAddress(x, y, z)] >
-            map_->mp_->clamp_min_log_ - 1e-3)
-          known_volumn += 0.1 * 0.1 * 0.1;
-      }
+  // for (int x = map_->mp_->box_min_(0) /* + 1 */; x < map_->mp_->box_max_(0); ++x)
+  //   for (int y = map_->mp_->box_min_(1) /* + 1 */; y < map_->mp_->box_max_(1); ++y)
+  //     for (int z = map_->mp_->box_min_(2) /* + 1 */; z < map_->mp_->box_max_(2); ++z) {
+  //       if (map_->md_->occupancy_buffer_[map_->toAddress(x, y, z)] >
+  //           map_->mp_->clamp_min_log_ - 1e-3)
+  //         known_volumn += 0.1 * 0.1 * 0.1;
+  //     }
 
-  // ofstream
-  // file("/home/boboyu/workspaces/plan_ws/src/fast_planner/exploration_manager/resource/"
+  // ofstream file("/home/boboyu/workspaces/plan_ws/src/fast_planner/exploration_manager/resource/"
   //               "curve1.txt",
-  //               ios::app);
+  //     ios::app);
   // file << "time:" << time_now << ",vol:" << known_volumn << std::endl;
 }
 
@@ -641,27 +647,22 @@ void MapROS::publishMapLocal() {
 void MapROS::publishUnknown() {
   pcl::PointXYZ pt;
   pcl::PointCloud<pcl::PointXYZ> cloud;
-  Eigen::Vector3i min_cut = map_->md_->local_bound_min_;
-  Eigen::Vector3i max_cut = map_->md_->local_bound_max_;
-  map_->boundIndex(max_cut);
-  map_->boundIndex(min_cut);
+  Eigen::Vector3i min_idx, max_idx;
+  map_->posToIndex(map_->md_->all_min_, min_idx);
+  map_->posToIndex(map_->md_->all_max_, max_idx);
 
-  int z_max_cut = floor((1.8 - map_->mp_->map_origin_(2)) * map_->mp_->resolution_inv_);
+  map_->boundIndex(min_idx);
+  map_->boundIndex(max_idx);
 
-  for (int x = map_->mp_->box_min_(0) /* + 1 */; x < map_->mp_->box_max_(0);
-       ++x)
-    for (int y = map_->mp_->box_min_(1) /* + 1 */; y < map_->mp_->box_max_(1);
-         ++y)
-      for (int z = map_->mp_->box_min_(2) /* + 1 */; z < z_max_cut;
-           ++z) {
+  for (int x = min_idx(0); x <= max_idx(0); ++x)
+    for (int y = min_idx(1); y <= max_idx(1); ++y)
+      for (int z = min_idx(2); z <= max_idx(2); ++z) {
         if (map_->md_->occupancy_buffer_[map_->toAddress(x, y, z)] <
             map_->mp_->clamp_min_log_ - 1e-3) {
           Eigen::Vector3d pos;
           map_->indexToPos(Eigen::Vector3i(x, y, z), pos);
-          if (pos(2) > visualization_truncate_height_)
-            continue;
-          if (pos(2) < visualization_truncate_low_)
-            continue;
+          if (pos(2) > visualization_truncate_height_) continue;
+          if (pos(2) < visualization_truncate_low_) continue;
           pt.x = pos(0);
           pt.y = pos(1);
           pt.z = pos(2);

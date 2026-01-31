@@ -20,6 +20,13 @@ find_package(catkin REQUIRED COMPONENTS
   tuw_multi_robot_router
 )
 
+add_message_files(
+  FILES
+  IdxList.msg
+  ChunkStamps.msg
+  ChunkData.msg
+)
+
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.7 REQUIRED)
 
@@ -48,6 +55,7 @@ add_library( plan_env
     src/edt_environment.cpp 
     src/raycast.cpp
     src/map_ros.cpp
+    src/multi_map_manager.cpp
     )
 target_link_libraries( plan_env
     ${catkin_LIBRARIES} 
