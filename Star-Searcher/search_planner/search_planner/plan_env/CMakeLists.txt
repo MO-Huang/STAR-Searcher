@@ -27,13 +27,18 @@ add_message_files(
   ChunkData.msg
 )
 
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
+
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.7 REQUIRED)
 
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES plan_env
- CATKIN_DEPENDS roscpp std_msgs tuw_voronoi_graph tuw_multi_robot_router
+ CATKIN_DEPENDS roscpp std_msgs tuw_voronoi_graph tuw_multi_robot_router message_runtime
 #  DEPENDS system_lib
 )
 
