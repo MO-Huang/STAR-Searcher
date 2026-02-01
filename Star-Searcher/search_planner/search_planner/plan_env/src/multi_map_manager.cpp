@@ -266,11 +266,13 @@ void MultiMapManager::sendChunks(
       msg.idx = data.chunks_[j - 1].idx_;
       msg.voxel_adrs = data.chunks_[j - 1].voxel_adrs_;
       if (chunk_drone_id == drone_id_ && data.chunks_[j - 1].need_query_) {
-        // Should query the occ info in map if they are still empty
+        // Should query the occ and obs_dist info in map if they are still empty
         getOccOfChunk(data.chunks_[j - 1].voxel_adrs_, data.chunks_[j - 1].voxel_occ_);
+        getObsDistOfChunk(data.chunks_[j - 1].voxel_adrs_, data.chunks_[j - 1].voxel_obs_dist_);
         data.chunks_[j - 1].need_query_ = false;
       }
       msg.voxel_occ_ = data.chunks_[j - 1].voxel_occ_;
+      msg.voxel_obs_dist_ = data.chunks_[j - 1].voxel_obs_dist_;
 
       // // Swarm communication
       // msg.pos_x = drone_pos_[0];
@@ -291,6 +293,13 @@ void MultiMapManager::getOccOfChunk(const vector<uint32_t>& adrs, vector<uint8_t
   for (auto adr : adrs) {
     uint8_t occ = map_->md_->occupancy_buffer_[adr] > map_->mp_->min_occupancy_log_ ? 1 : 0;
     occs.push_back(occ);
+  }
+}
+
+void MultiMapManager::getObsDistOfChunk(const vector<uint32_t>& adrs, vector<double>& obs_dists) {
+  for (auto adr : adrs) {
+    double obs_dist = map_->md_->min_observed_dist_[adr];
+    obs_dists.push_back(obs_dist);
   }
 }
 
@@ -371,6 +380,7 @@ void MultiMapManager::chunkTimerCallback(const ros::TimerEvent& e) {
       if (chunk.empty_) {  // Only insert a chunk once
         chunk.voxel_adrs_ = msg.voxel_adrs;
         chunk.voxel_occ_ = msg.voxel_occ_;
+        chunk.voxel_obs_dist_ = msg.voxel_obs_dist_;
         insertChunkToMap(chunk, msg.chunk_drone_id);
         chunk.empty_ = false;
       }
@@ -493,6 +503,7 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
     //     chunk.voxel_occ_[i] == 1 ? map_->mp_->clamp_max_log_ : map_->mp_->clamp_min_log_;
     map_->md_->occupancy_buffer_[adr_tf] =
         chunk.voxel_occ_[i] == 1 ? map_->mp_->clamp_max_log_ : map_->mp_->clamp_min_log_;
+    map_->md_->min_observed_dist_[adr_tf] = chunk.voxel_obs_dist_[i];
 
     // Update the chunk box
 
