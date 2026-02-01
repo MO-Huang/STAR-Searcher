@@ -26,6 +26,7 @@ struct MapChunk {
   uint32_t idx_;  // Start from 1
   vector<uint32_t> voxel_adrs_;
   vector<uint8_t> voxel_occ_;
+  vector<double> voxel_obs_dist_;
 
   bool need_query_;
   bool empty_;
@@ -58,6 +59,7 @@ public:
 private:
   void sendChunks(const int& chunk_drone_id, const int& to_drone_id, const vector<int>& idx_list);
   void getOccOfChunk(const vector<uint32_t>& adrs, vector<uint8_t>& occs);
+  void getObsDistOfChunk(const vector<uint32_t>& adrs, vector<double>& obs_dists);
   void insertChunkToMap(const MapChunk& chunk, const int& chunk_drone_id);
   void adrToIndex(const uint32_t& adr, Eigen::Vector3i& idx);
 

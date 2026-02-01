@@ -4,6 +4,7 @@ int32 chunk_drone_id
 
 uint32[] voxel_adrs
 uint8[] voxel_occ_
+float64[] voxel_obs_dist_
 uint32 idx
 
 # Simulate swarm communication
