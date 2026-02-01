@@ -419,6 +419,19 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
     md_->reset_updated_box_ = false;
   }
 
+  std::vector<int> dist_changed_ids; 
+
+  auto update_dist_func = [&](int adr, double dist) {
+      double old_dist = md_->min_observed_dist_[adr];
+
+      setObservedDist(adr, dist);
+
+      if ((old_dist == 0.0 || old_dist > mp_->belief_dist_) && 
+          md_->min_observed_dist_[adr] <= mp_->belief_dist_) {
+          dist_changed_ids.push_back(adr);
+      }
+  };
+
   Eigen::Vector3d pt_w, tmp;
   Eigen::Vector3i idx;
   int vox_adr;
@@ -453,12 +466,12 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
     Eigen::Vector3i tmp_idx = idx;
     setCacheOccupancy(vox_adr, tmp_flag);
     if (isInObstacle(idx)) {
-      setObservedDist(vox_adr, 0.1);
+      update_dist_func(vox_adr, 0.1);
     }
 
     if (in_cam_view) {
       double observed_dist = (pt_w - lidar_pos).norm();
-      setObservedDist(vox_adr, observed_dist);
+      update_dist_func(vox_adr, observed_dist);
     }
 
     for (int k = 0; k < 3; ++k) {
@@ -478,13 +491,13 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
         Eigen::Vector3d p;
         indexToPos(idx, p);
         double observed_dist = (p - lidar_pos).norm();
-        setObservedDist(toAddress(idx), observed_dist);
+        update_dist_func(toAddress(idx), observed_dist);
       }
       if (md_->flag_rayend_[toAddress(idx)] == md_->raycast_num_)
         continue;
       setCacheOccupancy(toAddress(idx), 0);
        if (isInObstacle(idx)) {
-        setObservedDist(toAddress(idx), 0.1);
+        update_dist_func(toAddress(idx), 0.1);
       }
     }
   }
@@ -506,22 +519,42 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
   }
 
   vector<uint32_t> new_voxel_ids_;
+  enum OccState { UNKNOWN, FREE, OCCUPIED };
+  auto getOccState = [&](double occ_val) -> OccState {
+    if (occ_val < mp_->clamp_min_log_ - 1e-3) {
+      return UNKNOWN;
+    } else if (occ_val <= mp_->min_occupancy_log_) {
+      return FREE;
+    } else {
+      return OCCUPIED;
+    }
+  };
   while (!md_->cache_voxel_.empty()) {
     int adr = md_->cache_voxel_.front();
     md_->cache_voxel_.pop();
+    OccState prev_state = getOccState(md_->occupancy_buffer_[adr]);
     double log_odds_update = md_->count_hit_[adr] >= md_->count_miss_[adr]
                                  ? mp_->prob_hit_log_
                                  : mp_->prob_miss_log_;
     md_->count_hit_[adr] = md_->count_miss_[adr] = 0;
-    if (md_->occupancy_buffer_[adr] < mp_->clamp_min_log_ - 1e-3) {
+    if (md_->occupancy_buffer_[adr] < mp_->clamp_min_log_ - 1e-3)
       md_->occupancy_buffer_[adr] = mp_->min_occupancy_log_;
-      new_voxel_ids_.push_back(adr);
-    }
 
     md_->occupancy_buffer_[adr] =
         std::min(std::max(md_->occupancy_buffer_[adr] + log_odds_update,
                           mp_->clamp_min_log_),
                  mp_->clamp_max_log_);
+    
+    OccState curr_state = getOccState(md_->occupancy_buffer_[adr]);
+    if (prev_state != curr_state)
+      new_voxel_ids_.push_back(adr);
+  }
+
+  if (!dist_changed_ids.empty()) {
+      new_voxel_ids_.insert(new_voxel_ids_.end(), dist_changed_ids.begin(), dist_changed_ids.end());
+      
+      std::sort(new_voxel_ids_.begin(), new_voxel_ids_.end());
+      new_voxel_ids_.erase(std::unique(new_voxel_ids_.begin(), new_voxel_ids_.end()), new_voxel_ids_.end());
   }
 
   mm_->updateMapChunk(new_voxel_ids_);
