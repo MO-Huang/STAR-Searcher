@@ -67,6 +67,13 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   nh.param("exploration/ydd", ViewNode::ydd_, -1.0);
   nh.param("exploration/w_dir", ViewNode::w_dir_, -1.0);
   nh.param("exploration/verbose_active_loop", ep_->verbose_active_loop_, false);
+  nh.param("exploration/drone_num", ep_->drone_num_, 1);
+  nh.param("exploration/drone_id", ep_->drone_id_, 1);
+
+  ed_->swarm_state_.resize(ep_->drone_num_);
+  for (int i = 0; i < ep_->drone_num_; ++i) {
+    ed_->swarm_state_[i].stamp_ = 0.0;
+  }
 
   ViewNode::astar_.reset(new Astar);
   ViewNode::astar_->init(nh, edt_environment_);

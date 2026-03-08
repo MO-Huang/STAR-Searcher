@@ -65,6 +65,12 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   replan_pub_ = nh.advertise<std_msgs::Empty>("/planning/replan", 10);
   new_pub_ = nh.advertise<std_msgs::Empty>("/planning/new", 10);
   bspline_pub_ = nh.advertise<bspline::Bspline>("/planning/bspline", 10);
+  drone_state_timer_ =
+      nh.createTimer(ros::Duration(0.04), &FastExplorationFSM::droneStateTimerCallback, this);
+  drone_state_pub_ =
+      nh.advertise<exploration_manager::DroneState>("/swarm_expl/drone_state_send", 10);
+  drone_state_sub_ = nh.subscribe(
+      "/swarm_expl/drone_state_recv", 10, &FastExplorationFSM::droneStateMsgCallback, this);
   start_flag_pub = nh.advertise<std_msgs::Int32>("/start_flag", 10);
   spiral_pub_ =
       nh.advertise<quadrotor_msgs::PositionCommand>("/planning/pos_cmd", 50);
@@ -77,6 +83,10 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
     }
   });
   vis_thread.detach();
+}
+
+int FastExplorationFSM::getId() {
+  return expl_manager_->ep_->drone_id_;
 }
 
 void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
@@ -639,5 +649,55 @@ void FastExplorationFSM::transitState(EXPL_STATE new_state, string pos_call) {
   cout << "[" + pos_call + "]: from " + fd_->state_str_[pre_s] + " to " +
               fd_->state_str_[int(new_state)]
        << endl;
+}
+
+void FastExplorationFSM::droneStateTimerCallback(const ros::TimerEvent& e) {
+  // Broadcast own state periodically
+  exploration_manager::DroneState msg;
+  msg.drone_id = getId();
+
+  auto& state = expl_manager_->ed_->swarm_state_[msg.drone_id - 1];
+
+  if (fd_->static_state_) {
+    state.pos_ = fd_->odom_pos_;
+    state.vel_ = fd_->odom_vel_;
+    state.yaw_ = fd_->odom_yaw_;
+  } else {
+    LocalTrajData* info = &planner_manager_->local_data_;
+    double t_r = (ros::Time::now() - info->start_time_).toSec();
+    state.pos_ = info->position_traj_.evaluateDeBoorT(t_r);
+    state.vel_ = info->velocity_traj_.evaluateDeBoorT(t_r);
+    state.yaw_ = info->yaw_traj_.evaluateDeBoorT(t_r)[0];
+  }
+  state.stamp_ = ros::Time::now().toSec();
+  msg.pos = { float(state.pos_[0]), float(state.pos_[1]), float(state.pos_[2]) };
+  msg.vel = { float(state.vel_[0]), float(state.vel_[1]), float(state.vel_[2]) };
+  msg.yaw = state.yaw_;
+  msg.stamp = state.stamp_;
+
+  drone_state_pub_.publish(msg);
+
+  // std::cout << "\033[44mDrone " << getId() << " publish its state. " << std::endl; 
+  // std::cout << " " << msg.pos[0] << " " << msg.pos[1] << " " << msg.pos[2] << "\033[0m" << std::endl;
+}
+
+void FastExplorationFSM::droneStateMsgCallback(const exploration_manager::DroneStateConstPtr& msg) {
+  // Update other drones' states
+  if (msg->drone_id == getId()) return;
+
+  // Simulate swarm communication loss
+  Eigen::Vector3d msg_pos(msg->pos[0], msg->pos[1], msg->pos[2]);
+  // if ((msg_pos - fd_->odom_pos_).norm() > 6.0) return;
+
+  auto& drone_state = expl_manager_->ed_->swarm_state_[msg->drone_id - 1];
+  if (drone_state.stamp_ + 1e-4 >= msg->stamp) return;  // Avoid unordered msg
+
+  drone_state.pos_ = Eigen::Vector3d(msg->pos[0], msg->pos[1], msg->pos[2]);
+  drone_state.vel_ = Eigen::Vector3d(msg->vel[0], msg->vel[1], msg->vel[2]);
+  drone_state.yaw_ = msg->yaw;
+  drone_state.stamp_ = msg->stamp;
+
+  // std::cout << "\033[34mDrone " << getId() << " get drone " << int(msg->drone_id) << "'s state" << std::endl; 
+  // std::cout << drone_state.pos_.transpose() << "\033[0m" << std::endl;
 }
 } // namespace fast_planner

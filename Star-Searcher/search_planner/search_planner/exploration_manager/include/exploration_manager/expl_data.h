@@ -36,6 +36,13 @@ struct FSMParam {
   bool show_tag;
 };
 
+struct DroneState {
+  Eigen::Vector3d pos_;
+  Eigen::Vector3d vel_;
+  double yaw_;
+  double stamp_;                // Stamp of pos,vel,yaw
+};
+
 struct ExplorationData {
   ros::Time start_time_, finish_time_;
   vector<vector<Vector3d>> frontiers_;
@@ -69,6 +76,9 @@ struct ExplorationData {
   vector<Vector3d> views_vis1_, views_vis2_;
   vector<Vector3d> centers_, scales_;
 
+  // Swarm, other drones' state
+  vector<DroneState> swarm_state_;
+
   // Coverage planning
   vector<Vector3d> grid_tour_;
   vector<int> grid_ids_;
@@ -91,6 +101,10 @@ struct ExplorationParam {
   double relax_time_;
   int init_plan_num_;
   int alc_cp_search_range_;
+
+  // Swarm
+  int drone_num_;
+  int drone_id_;
 
   bool enable_fixed_hgrid_;
   bool perception_aware_local_;

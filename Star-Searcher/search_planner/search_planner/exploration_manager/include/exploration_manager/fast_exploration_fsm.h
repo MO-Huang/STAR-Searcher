@@ -8,6 +8,7 @@
 #include <ros/ros.h>
 #include <std_msgs/Empty.h>
 #include <visualization_msgs/Marker.h>
+#include <exploration_manager/DroneState.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
 #include <tf2_ros/transform_listener.h>
@@ -67,14 +68,15 @@ private:
 
   /* ROS utils */
   ros::NodeHandle node_;
-  ros::Timer exec_timer_, safety_timer_, vis_timer_, frontier_timer_, tag_timer_;
-  ros::Subscriber trigger_sub_, odom_sub_;
-  ros::Publisher replan_pub_, new_pub_, bspline_pub_, spiral_pub_;
+  ros::Timer exec_timer_, safety_timer_, vis_timer_, frontier_timer_, tag_timer_, drone_state_timer_;
+  ros::Subscriber trigger_sub_, odom_sub_, drone_state_sub_;
+  ros::Publisher replan_pub_, new_pub_, bspline_pub_, spiral_pub_, drone_state_pub_;
   ros::Publisher start_flag_pub; //发布比赛开始相关标志，及是否接收到trigger
 
   /* helper functions */
   int callExplorationPlanner();
   void transitState(EXPL_STATE new_state, string pos_call);
+  int getId();
 
   /* ROS functions */
   void FSMCallback(const ros::TimerEvent &e);
@@ -85,6 +87,10 @@ private:
   void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
   void visualize();
   void clearVisMarker();
+
+  // Swarm
+  void droneStateTimerCallback(const ros::TimerEvent& e);
+  void droneStateMsgCallback(const exploration_manager::DroneStateConstPtr& msg);
 
 public:
   FastExplorationFSM(/* args */) {}

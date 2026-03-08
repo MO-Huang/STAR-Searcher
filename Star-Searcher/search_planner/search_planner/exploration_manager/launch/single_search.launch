@@ -39,6 +39,8 @@
     <remap from="/multi_map_manager/chunk_data_send" to="/multi_map_manager/chunk_data" />
     <remap from="/multi_map_manager/chunk_stamps_recv" to="/multi_map_manager/chunk_stamps" />
     <remap from="/multi_map_manager/chunk_data_recv" to="/multi_map_manager/chunk_data" />
+    <remap from="/swarm_expl/drone_state_send" to="/swarm_expl/drone_state" />
+    <remap from="/swarm_expl/drone_state_recv" to="/swarm_expl/drone_state" />
     <remap from="/sdf_map/occupancy_all" to="/drone_$(arg drone_id)/sdf_map/occupancy_all" />
     <remap from="/sdf_map/occupancy_local" to="/drone_$(arg drone_id)/sdf_map/occupancy_local" />
     <remap from="/sdf_map/occupancy_local_inflate" to="/drone_$(arg drone_id)/sdf_map/occupancy_local_inflate" />
