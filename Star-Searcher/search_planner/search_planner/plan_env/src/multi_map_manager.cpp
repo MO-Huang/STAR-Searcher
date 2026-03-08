@@ -203,7 +203,7 @@ void MultiMapManager::stampMsgCallback(const plan_env::ChunkStampsConstPtr& msg)
     vector<int> missed;
     findMissedChunkIds(multi_map_chunks_[i].idx_list_, msg->idx_lists[i].ids, missed);
     sendChunks(i + 1, msg->from_drone_id, missed);
-    printf("\033[32mCheck others' stamp info and send chunks unknown by them.\033[0m\n");
+    // printf("\033[32mCheck others' stamp info and send chunks unknown by them.\033[0m\n");
   }
 
   // ROS_ERROR("Stamp time: %lf", (ros::Time::now() - t1).toSec());
@@ -280,8 +280,8 @@ void MultiMapManager::sendChunks(
       // msg.pos_z = drone_pos_[2];
 
       chunk_pub_.publish(msg);
-      std::cout << "Drone " << drone_id_ << " send chunk " << msg.idx << " of drone "
-                << int(msg.chunk_drone_id) << " to drone " << int(msg.to_drone_id) << std::endl;
+      // std::cout << "Drone " << drone_id_ << " send chunk " << msg.idx << " of drone "
+      //           << int(msg.chunk_drone_id) << " to drone " << int(msg.to_drone_id) << std::endl;
     }
   }
 
