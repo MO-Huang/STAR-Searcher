@@ -679,6 +679,38 @@ void FrontierFinder::removeUnreachableCluster(int idx) {
   }
 }
 
+void FrontierFinder::retainClusterByIds(const vector<int> &keep_ids) {
+  if (keep_ids.empty()) {
+    frontier_clusters_.clear();
+    return;
+  }
+
+  vector<FrontierCluster> old_clusters = frontier_clusters_;
+  frontier_clusters_.clear();
+  frontier_clusters_.reserve(keep_ids.size());
+
+  vector<int> valid_old_ids;
+  valid_old_ids.reserve(keep_ids.size());
+  for (const int id : keep_ids) {
+    if (id < 0 || id >= static_cast<int>(old_clusters.size())) continue;
+    frontier_clusters_.push_back(old_clusters[id]);
+    frontier_clusters_.back().costs_.clear();
+    valid_old_ids.push_back(id);
+  }
+
+  if (valid_old_ids.empty()) {
+    frontier_clusters_.clear();
+    return;
+  }
+
+  for (int i = 0; i < static_cast<int>(valid_old_ids.size()); ++i) {
+    for (int j = 0; j < static_cast<int>(valid_old_ids.size()); ++j) {
+      frontier_clusters_[i].costs_.push_back(
+          old_clusters[valid_old_ids[i]].costs_[valid_old_ids[j]]);
+    }
+  }
+}
+
 void FrontierFinder::mergeFrontiers(Frontier &ftr1, const Frontier &ftr2) {
   // Merge ftr2 into ftr1
   ftr1.average_ = (ftr1.average_ * double(ftr1.cells_.size()) +

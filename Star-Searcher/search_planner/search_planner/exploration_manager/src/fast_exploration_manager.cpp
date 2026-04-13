@@ -5,6 +5,7 @@
 #include <active_perception/perception_utils.h>
 #include <exploration_manager/expl_data.h>
 #include <exploration_manager/fast_exploration_manager.h>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <lkh_tsp_solver/lkh_interface.h>
@@ -14,6 +15,8 @@
 #include <plan_manage/planner_manager.h>
 #include <thread>
 #include <traj_utils/planning_visualization.h>
+#include <unordered_map>
+#include <sstream>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -45,6 +48,8 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   ed_.reset(new ExplorationData);
   ep_.reset(new ExplorationParam);
   visualization_.reset(new PlanningVisualization(nh));
+  voronoi_partition_marker_pub_ =
+      nh.advertise<visualization_msgs::Marker>("/planning_vis/voronoi_partition", 1);
 
   nh.param("exploration/refine_local", ep_->refine_local_, true);
   nh.param("exploration/refined_num", ep_->refined_num_, -1);
@@ -69,6 +74,12 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   nh.param("exploration/verbose_active_loop", ep_->verbose_active_loop_, false);
   nh.param("exploration/drone_num", ep_->drone_num_, 1);
   nh.param("exploration/drone_id", ep_->drone_id_, 1);
+  nh.param("exploration/voronoi_local_range", ep_->local_range_, 8.0);
+  nh.param("exploration/voronoi_connection_cache_resolution", ep_->connection_cache_resolution_, 0.2);
+  nh.param("exploration/voronoi_state_timeout", ep_->state_timeout_, 1.0);
+  nh.param("exploration/voronoi_debug", ep_->voronoi_debug_, false);
+  nh.param("segment_length", ep_->voronoi_segment_length_, 1.0);
+  nh.param("exploration/voronoi_cluster_r1_scale", ep_->voronoi_cluster_r1_scale_, 2.5);
 
   ed_->swarm_state_.resize(ep_->drone_num_);
   for (int i = 0; i < ep_->drone_num_; ++i) {
@@ -85,6 +96,9 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   sdf_map_->getRegion(origin, size);
   ViewNode::caster_.reset(new RayCaster);
   ViewNode::caster_->setParams(resolution_, origin);
+  voronoi_graph_resolution_ = resolution_;
+  voronoi_graph_origin_ = origin;
+  voronoi_graph_meta_initialized_ = true;
 
   // planner_manager_->path_finder_->lambda_heu_ = 1.0;
   // // planner_manager_->path_finder_->max_search_time_ = 0.05;
@@ -152,8 +166,13 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
     ROS_WARN("No coverable frontier.");
     return NO_FRONTIER;
   }
+  voronoiPartition(pos, vel);
   vector<vector<Eigen::Vector3d>> division_clusters;
   frontier_finder_->getFrontierDivision(division_clusters);
+  if (division_clusters.empty()) {
+    ROS_WARN("No assigned frontier cluster after voronoi partition.");
+    return NO_FRONTIER;
+  }
   Eigen::Vector3d next_cluster_pos;
   while(division_clusters.size() > 0){
     if (division_clusters.size() > 1) {
@@ -1031,6 +1050,568 @@ double FastExplorationManager::hausdorffDistance(
     }
   }
   return maxDistance;
+}
+
+void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
+                                              const Vector3d &cur_vel) {
+  // Voronoi-style task partition:
+  // 1) Build local topo graph from Voronoi segments.
+  // 2) Bind clusters to reachable topo and select local clusters.
+  // 3) Seed overlap nodes from local drones and run multi-source Dijkstra.
+  // 4) Keep clusters owned by this drone (fallback keeps all selected).
+  vector<Vector3d> centers;
+  frontier_finder_->getClusterCenter(centers);
+  const int cluster_num = static_cast<int>(centers.size());
+  if (cluster_num == 0) return;
+
+  // Voronoi graph segments (grid coords) from the topo structure.
+  std::vector<tuw_graph::Segment> vg_segments;
+  // Pull topology segments (no grid data needed here).
+  if (!sdf_map_->getVoronoiGraph(vg_segments) || vg_segments.empty()) {
+    return;
+  }
+  // Cache resolution/origin once for endpoint -> world conversion.
+  if (!voronoi_graph_meta_initialized_) {
+    Vector3d region_size;
+    int z_layer;
+    sdf_map_->getRegion(voronoi_graph_origin_, region_size);
+    sdf_map_->getZLayer(z_layer);
+    voronoi_graph_resolution_ = sdf_map_->getResolution();
+    voronoi_graph_origin_[2] = voronoi_graph_origin_[2] + z_layer * voronoi_graph_resolution_;
+    voronoi_graph_meta_initialized_ = true;
+  }
+
+  // Clamp cache quantization to avoid tiny bins.
+  ep_->connection_cache_resolution_ = std::max(1e-3, ep_->connection_cache_resolution_);
+
+  const int self_idx = ep_->drone_id_ - 1;
+  const double now = ros::Time::now().toSec();
+
+  // Minimal drone state for partitioning seeds.
+  struct DroneSeed {
+    int drone_idx_;
+    Vector3d pos_;
+    Vector3d vel_;
+  };
+  vector<DroneSeed> valid_drones;
+  valid_drones.reserve(ep_->drone_num_);
+  for (int drone_idx = 0; drone_idx < ep_->drone_num_; ++drone_idx) {
+    // Keep self and recent teammates only.
+    if (drone_idx == self_idx) {
+      valid_drones.push_back({drone_idx, cur_pos, cur_vel});
+    } else if (now - ed_->swarm_state_[drone_idx].stamp_ < ep_->state_timeout_) {
+      valid_drones.push_back(
+          {drone_idx, ed_->swarm_state_[drone_idx].pos_, ed_->swarm_state_[drone_idx].vel_});
+    }
+  }
+  if (valid_drones.empty()) return;
+  if (ep_->voronoi_debug_) {
+    std::ostringstream ss;
+    ss << "[voronoiPartition] self_id=" << ep_->drone_id_
+       << ", total_clusters=" << cluster_num
+       << ", vg_segments=" << vg_segments.size()
+       << ", valid_drones=" << valid_drones.size();
+    ROS_WARN_STREAM(ss.str());
+  }
+
+  // 1) Build topo graph nodes from segment endpoints.
+  //    Topo-topo edge weights use Voronoi segment length.
+  struct TopoNode {
+    Vector3d pos_;
+    vector<pair<int, double>> neighbors_;
+  };
+  vector<TopoNode> topo_nodes;
+
+  auto endpointToWorld = [&](const Eigen::Vector2d &pt, const double z) -> Vector3d {
+    // Segment endpoints are in grid coords; lift to world with current Z.
+    Vector3d p = Vector3d::Zero();
+    p[0] = pt[0] * voronoi_graph_resolution_ + voronoi_graph_origin_[0];
+    p[1] = pt[1] * voronoi_graph_resolution_ + voronoi_graph_origin_[1];
+    p[2] = z;
+    return p;
+  };
+
+  // Query real path cost and cache by quantized endpoint pairs.
+  std::unordered_map<std::string, double> path_cost_cache;
+  auto makeQuantized = [&](const Vector3d &p) -> Vector3i {
+    Vector3i q;
+    q[0] = static_cast<int>(std::round(p[0] / ep_->connection_cache_resolution_));
+    q[1] = static_cast<int>(std::round(p[1] / ep_->connection_cache_resolution_));
+    q[2] = static_cast<int>(std::round(p[2] / ep_->connection_cache_resolution_));
+    return q;
+  };
+  auto makeKey = [&](const Vector3d &a, const Vector3d &b) -> std::string {
+    // Order-invariant key so (a,b) and (b,a) share the same cache entry.
+    const Vector3i qa = makeQuantized(a);
+    const Vector3i qb = makeQuantized(b);
+    const bool swap = (qa[0] > qb[0]) ||
+                      (qa[0] == qb[0] && qa[1] > qb[1]) ||
+                      (qa[0] == qb[0] && qa[1] == qb[1] && qa[2] > qb[2]);
+    const Vector3i &u = swap ? qb : qa;
+    const Vector3i &v = swap ? qa : qb;
+    return std::to_string(u[0]) + "_" + std::to_string(u[1]) + "_" +
+           std::to_string(u[2]) + "|" + std::to_string(v[0]) + "_" +
+           std::to_string(v[1]) + "_" + std::to_string(v[2]);
+  };
+  auto queryPathCost = [&](const Vector3d &a, const Vector3d &b, double &cost) -> bool {
+    // Returns true if router can reach; cost is real path length.
+    if ((a - b).norm() <= 1e-3) {
+      cost = 0.0;
+      return true;
+    }
+    const std::string key = makeKey(a, b);
+    auto it = path_cost_cache.find(key);
+    if (it != path_cost_cache.end()) {
+      cost = it->second;
+      return std::isfinite(cost);
+    }
+    if (router_->search(a, b) == multi_robot_router::Router_Node::REACH_END) {
+      auto path = router_->getPath();
+      if (path.size() < 2) {
+        cost = (a - b).norm();
+      } else {
+        cost = router_->pathLength(path);
+      }
+      path_cost_cache[key] = cost;
+      return true;
+    }
+    path_cost_cache[key] = std::numeric_limits<double>::infinity();
+    return false;
+  };
+  auto logQueryFail = [&](const char *tag, const Vector3d &a, const Vector3d &b) {
+    ROS_WARN("queryPathCost failed at %s. a=[%.3f %.3f %.3f], b=[%.3f %.3f %.3f]",
+             tag,
+             a[0], a[1], a[2],
+             b[0], b[1], b[2]);
+  };
+
+  // Endpoint deduplication (quantized) to avoid duplicate topo nodes.
+  std::unordered_map<std::string, int> endpoint_to_node;
+  auto endpointKey = [&](const Vector3d &p) -> std::string {
+    const Vector3i q = makeQuantized(p);
+    return std::to_string(q[0]) + "_" + std::to_string(q[1]) + "_" +
+           std::to_string(q[2]);
+  };
+  auto getOrCreateNode = [&](const Vector3d &p) -> int {
+    const std::string key = endpointKey(p);
+    auto it = endpoint_to_node.find(key);
+    if (it != endpoint_to_node.end()) return it->second;
+    topo_nodes.push_back({p, {}});
+    const int id = static_cast<int>(topo_nodes.size()) - 1;
+    endpoint_to_node[key] = id;
+    return id;
+  };
+
+  // Build topo adjacency from Voronoi segments.
+  for (const auto &seg : vg_segments) {
+    const Vector3d s = endpointToWorld(seg.getStart(), cur_pos[2]);
+    const Vector3d e = endpointToWorld(seg.getEnd(), cur_pos[2]);
+    const int u = getOrCreateNode(s);
+    const int v = getOrCreateNode(e);
+    // Segment length is in grid units; scale to meters by resolution.
+    const double w = std::max(1.0, static_cast<double>(seg.getLength())) *
+                     voronoi_graph_resolution_;//这里的getLength()得到的值是什么，直接乘上分辨率是对的吗?
+    topo_nodes[u].neighbors_.push_back({v, w});
+    topo_nodes[v].neighbors_.push_back({u, w});
+  }
+  if (topo_nodes.empty()) return;
+
+  // Candidate topo nodes by XY range (filtered by reachability later).
+  vector<int> candidate_topo_ids;
+  for (int i = 0; i < static_cast<int>(topo_nodes.size()); ++i) {
+    if ((topo_nodes[i].pos_.head<2>() - cur_pos.head<2>()).norm() <= ep_->local_range_) {
+      candidate_topo_ids.push_back(i);
+    }
+  }
+  if (candidate_topo_ids.empty()) { // Fallback: keep nearest topo to avoid empty candidates.
+    double best = std::numeric_limits<double>::max();
+    int best_id = -1;
+    for (int i = 0; i < static_cast<int>(topo_nodes.size()); ++i) {
+      const double d = (topo_nodes[i].pos_.head<2>() - cur_pos.head<2>()).norm();
+      if (d < best) {
+        best = d;
+        best_id = i;
+      }
+    }
+    if (best_id >= 0) candidate_topo_ids.push_back(best_id);
+  }
+
+  // Keep only topo nodes that are path-reachable from self.
+  vector<int> local_topo_ids;
+  for (const int tid : candidate_topo_ids) {
+    double c = 0.0;
+    if (queryPathCost(cur_pos, topo_nodes[tid].pos_, c)) {
+      local_topo_ids.push_back(tid);
+    } else {
+      logQueryFail("local_topo_ids:cur_to_topo", cur_pos, topo_nodes[tid].pos_);
+    }
+  }
+  if (local_topo_ids.empty()) {
+    int best_id = -1;
+    double best_cost = std::numeric_limits<double>::max();
+    for (int i = 0; i < static_cast<int>(topo_nodes.size()); ++i) {
+      double c = 0.0;
+      if (!queryPathCost(cur_pos, topo_nodes[i].pos_, c)) {
+        logQueryFail("local_topo_ids_fallback:cur_to_topo", cur_pos, topo_nodes[i].pos_);
+        continue;
+      }
+      if (c < best_cost) {
+        best_cost = c;
+        best_id = i;
+      }
+    }
+    if (best_id >= 0) local_topo_ids.push_back(best_id);
+  }
+  if (local_topo_ids.empty()) return;
+  if (ep_->voronoi_debug_) {
+    std::ostringstream ss;
+    ss << "[voronoiPartition] local_topo_ids(" << local_topo_ids.size() << "): ";
+    for (const int tid : local_topo_ids) ss << tid << " ";
+    ROS_WARN_STREAM(ss.str());
+  }
+
+  // 2) Bind each cluster to its nearest reachable topo (global topo set).
+  //    Select clusters whose bound topo is in local_topo_ids.
+  const double Lmax = std::max(1e-3, ep_->voronoi_segment_length_);
+  const double R1 = ep_->voronoi_cluster_r1_scale_ * Lmax;
+
+  vector<int> cluster_best_topo(cluster_num, -1);
+  vector<double> cluster_best_cost(cluster_num, std::numeric_limits<double>::infinity());
+
+  for (int cid = 0; cid < cluster_num; ++cid) {
+    vector<pair<double, int>> topo_dists;
+    topo_dists.reserve(topo_nodes.size());
+    double max_dist = 0.0;
+    for (int tid = 0; tid < static_cast<int>(topo_nodes.size()); ++tid) {
+      const double d = (topo_nodes[tid].pos_.head<2>() - centers[cid].head<2>()).norm();
+      topo_dists.push_back({d, tid});
+      if (d > max_dist) max_dist = d;
+    }
+    std::sort(topo_dists.begin(), topo_dists.end(),
+              [](const pair<double, int> &a, const pair<double, int> &b) {
+                return a.first < b.first;
+              });
+
+    auto scanTier = [&](const double r, size_t &start_idx) -> bool {
+      bool found = false;
+      while (start_idx < topo_dists.size() && topo_dists[start_idx].first <= r) {
+        const int tid = topo_dists[start_idx].second;
+        double c = 0.0;
+        if (queryPathCost(topo_nodes[tid].pos_, centers[cid], c)) {
+          if (c < cluster_best_cost[cid]) {
+            cluster_best_cost[cid] = c;
+            cluster_best_topo[cid] = tid;
+          }
+          found = true;
+        } else {
+          logQueryFail("cluster_bind:topo_to_center", topo_nodes[tid].pos_, centers[cid]);
+        }
+        ++start_idx;
+      }
+      return found;
+    };
+
+    size_t idx = 0;
+    double r = std::min(R1, max_dist);
+    bool found = scanTier(r, idx);
+    if (!found && r < max_dist) {
+      r = std::min(2.0 * r, max_dist);
+      found = scanTier(r, idx);
+    }
+    if (!found && r < max_dist) {
+      r = std::min(2.0 * r, max_dist);
+      found = scanTier(r, idx);
+    }
+    if (!found && r < max_dist) {
+      scanTier(max_dist, idx);
+    }
+  }
+
+  vector<char> is_local_topo(topo_nodes.size(), false);
+  for (const int tid : local_topo_ids) is_local_topo[tid] = true;
+
+  vector<int> selected_clusters;
+  selected_clusters.reserve(cluster_num);
+  for (int cid = 0; cid < cluster_num; ++cid) {
+    const int tid = cluster_best_topo[cid];
+    if (tid >= 0 && is_local_topo[tid]) selected_clusters.push_back(cid);
+  }
+  if (selected_clusters.empty()) return;
+  if (ep_->voronoi_debug_) {
+    std::ostringstream ss;
+    ss << "[voronoiPartition] selected_clusters(" << selected_clusters.size() << "): ";
+    for (const int cid : selected_clusters) ss << cid << " ";
+    ROS_WARN_STREAM(ss.str());
+  }
+
+  // 3) Keep drones whose local range overlaps self local range.
+  //    Overlap: XY range filter + reachability via queryPathCost.
+  struct LocalDroneInfo {
+    DroneSeed dr_;
+    vector<int> overlap_topo_ids_;
+    vector<int> overlap_cluster_ids_;
+  };
+  vector<LocalDroneInfo> local_drones;
+  local_drones.reserve(valid_drones.size());
+  for (const auto &dr : valid_drones) {
+    LocalDroneInfo info;
+    info.dr_ = dr;
+
+    // Range pre-filter for topo nodes.
+    vector<int> topo_candidates;
+    topo_candidates.reserve(local_topo_ids.size());
+    for (const int tid : local_topo_ids) {
+      if ((topo_nodes[tid].pos_.head<2>() - dr.pos_.head<2>()).norm() <= ep_->local_range_) {
+        topo_candidates.push_back(tid);
+      }
+    }
+    // Reachability check for topo candidates.
+    for (const int tid : topo_candidates) {
+      double c = 0.0;
+      if (queryPathCost(dr.pos_, topo_nodes[tid].pos_, c)) {
+        info.overlap_topo_ids_.push_back(tid);
+      } else {
+        logQueryFail("local_drones:dr_to_topo", dr.pos_, topo_nodes[tid].pos_);
+      }
+    }
+
+    // Range pre-filter for frontier clusters.
+    vector<int> cluster_candidates;
+    cluster_candidates.reserve(selected_clusters.size());
+    for (const int cid : selected_clusters) {
+      if ((centers[cid].head<2>() - dr.pos_.head<2>()).norm() <= ep_->local_range_) {
+        cluster_candidates.push_back(cid);
+      }
+    }
+    // Reachability check for cluster candidates.
+    for (const int cid : cluster_candidates) {
+      double c = 0.0;
+      if (queryPathCost(dr.pos_, centers[cid], c)) {
+        info.overlap_cluster_ids_.push_back(cid);
+      } else {
+        logQueryFail("local_drones:dr_to_center", dr.pos_, centers[cid]);
+      }
+    }
+
+    // Keep drone only if it overlaps with self local range.
+    if (dr.drone_idx_ == self_idx ||
+        !info.overlap_topo_ids_.empty() ||
+        !info.overlap_cluster_ids_.empty()) {
+      local_drones.push_back(info);
+    }
+  }
+  if (local_drones.empty()) return;
+  if (ep_->voronoi_debug_) {
+    std::ostringstream ss;
+    ss << "[voronoiPartition] local_drones(" << local_drones.size() << "): ";
+    for (const auto &info : local_drones) ss << (info.dr_.drone_idx_ + 1) << " ";
+    ROS_WARN_STREAM(ss.str());
+  }
+
+  // Build local graph: topo nodes + selected clusters.
+  // Node layout: [0..topo_n-1]=topo, [topo_n..topo_n+clu_n-1]=clusters.
+  const int topo_n = static_cast<int>(local_topo_ids.size());
+  const int clu_n = static_cast<int>(selected_clusters.size());
+  const int total_n = topo_n + clu_n;
+  vector<vector<pair<int, double>>> adj(total_n);
+  std::unordered_map<int, int> topo_local_idx;
+  for (int i = 0; i < topo_n; ++i) topo_local_idx[local_topo_ids[i]] = i; // topo_id -> local_idx
+
+  // topo-topo edges (from Voronoi segments).
+  for (int i = 0; i < topo_n; ++i) {
+    const int tid = local_topo_ids[i];
+    for (const auto &nei : topo_nodes[tid].neighbors_) {
+      const int nei_tid = nei.first;
+      auto it_local = topo_local_idx.find(nei_tid);
+      if (it_local == topo_local_idx.end()) continue;
+      const int j = it_local->second;
+      adj[i].push_back({j, nei.second});
+    }
+  }
+
+  // topo-cluster edges: connect each cluster only to its bound topo.
+  for (int j = 0; j < clu_n; ++j) {
+    const int cid = selected_clusters[j];
+    const int tid = cluster_best_topo[cid];
+    auto it_local = topo_local_idx.find(tid);
+    if (it_local == topo_local_idx.end()) continue;
+    const int i = it_local->second;
+    const double w = cluster_best_cost[cid];
+    if (!std::isfinite(w)) continue;
+    const int ci = topo_n + j;
+    adj[i].push_back({ci, w});
+    adj[ci].push_back({i, w});
+  }
+
+  // Multi-source Dijkstra over local graph (seeded by drones).
+  struct QueueNode {
+    double dist_;
+    int node_id_;
+    int owner_;
+    bool operator<(const QueueNode &other) const { return dist_ > other.dist_; }
+  };
+  std::priority_queue<QueueNode> q;
+  vector<double> best_dist(total_n, std::numeric_limits<double>::max());
+  vector<int> owner(total_n, -1);
+
+  // Keep best dist; tie-break by smaller drone index for deterministic ownership.
+  auto tryPush = [&](const int node_id, const double dist, const int drone_owner) {
+    if (dist + 1e-6 < best_dist[node_id] ||
+        (std::abs(dist - best_dist[node_id]) <= 1e-6 &&
+         (owner[node_id] == -1 || drone_owner < owner[node_id]))) {
+      best_dist[node_id] = dist;
+      owner[node_id] = drone_owner;
+      q.push({dist, node_id, drone_owner});
+    }
+  };
+
+  // Seed only overlapping topo/cluster nodes from each local drone.
+  for (const auto &info : local_drones) {
+    for (const int tid : info.overlap_topo_ids_) {
+      double d = 0.0;
+      if (queryPathCost(info.dr_.pos_, topo_nodes[tid].pos_, d)) {
+        auto it_local = topo_local_idx.find(tid);
+        if (it_local != topo_local_idx.end()) {
+          tryPush(it_local->second, d, info.dr_.drone_idx_);
+        }
+      } else {
+        logQueryFail("seed_dist:dr_to_topo", info.dr_.pos_, topo_nodes[tid].pos_);
+      }
+    }
+    for (const int cid : info.overlap_cluster_ids_) {
+      double d = 0.0;
+      if (queryPathCost(info.dr_.pos_, centers[cid], d)) {
+        int local_cluster_idx = -1;
+        for (int j = 0; j < clu_n; ++j) {
+          if (selected_clusters[j] == cid) {
+            local_cluster_idx = j;
+            break;
+          }
+        }
+        if (local_cluster_idx >= 0) {
+          tryPush(topo_n + local_cluster_idx, d, info.dr_.drone_idx_);
+        }
+      } else {
+        logQueryFail("seed_dist:dr_to_center", info.dr_.pos_, centers[cid]);
+      }
+    }
+  }
+
+  if (q.empty()) return;
+
+  // Standard Dijkstra relaxation with owner propagation.
+  while (!q.empty()) {
+    const QueueNode cur = q.top();
+    q.pop();
+    if (cur.owner_ != owner[cur.node_id_] ||
+        std::abs(cur.dist_ - best_dist[cur.node_id_]) > 1e-6) {
+      continue;
+    }
+    for (const auto &e : adj[cur.node_id_]) {
+      const double nd = cur.dist_ + e.second;
+      if (nd + 1e-6 < best_dist[e.first] ||
+          (std::abs(nd - best_dist[e.first]) <= 1e-6 && cur.owner_ < owner[e.first])) {
+        best_dist[e.first] = nd;
+        owner[e.first] = cur.owner_;
+        q.push({nd, e.first, cur.owner_});
+      }
+    }
+  }
+
+  // Map per-cluster owner/dist for logging and visualization.
+  vector<int> cluster_owner(cluster_num, -2); // -2: not in local graph
+  vector<double> cluster_dist(cluster_num, std::numeric_limits<double>::infinity());
+  for (int j = 0; j < clu_n; ++j) {
+    const int cid = selected_clusters[j];
+    const int nid = topo_n + j;
+    cluster_owner[cid] = owner[nid];
+    cluster_dist[cid] = best_dist[nid];
+  }
+
+  if (voronoi_partition_marker_pub_) {
+    // Visualize selected clusters with color by owner (RViz).
+    visualization_msgs::Marker mk;
+    mk.header.frame_id = "world";
+    mk.header.stamp = ros::Time::now();
+    mk.ns = "voronoi_partition";
+    mk.id = 0;
+    mk.type = visualization_msgs::Marker::SPHERE_LIST;
+    mk.action = visualization_msgs::Marker::ADD;
+    mk.pose.orientation.w = 1.0;
+    mk.scale.x = 0.45;
+    mk.scale.y = 0.45;
+    mk.scale.z = 0.45;
+
+    auto ownerColor = [&](const int oid) -> std_msgs::ColorRGBA {
+      // Fixed palette; unassigned -> gray.
+      std_msgs::ColorRGBA c;
+      c.a = 1.0;
+      if (oid < 0) {
+        c.r = 0.6; c.g = 0.6; c.b = 0.6;
+        return c;
+      }
+      const int m = oid % 6;
+      if (m == 0) { c.r = 0.95; c.g = 0.20; c.b = 0.20; }
+      if (m == 1) { c.r = 0.20; c.g = 0.95; c.b = 0.20; }
+      if (m == 2) { c.r = 0.20; c.g = 0.45; c.b = 0.95; }
+      if (m == 3) { c.r = 0.95; c.g = 0.95; c.b = 0.20; }
+      if (m == 4) { c.r = 0.95; c.g = 0.45; c.b = 0.20; }
+      if (m == 5) { c.r = 0.65; c.g = 0.20; c.b = 0.95; }
+      return c;
+    };
+
+    mk.points.reserve(selected_clusters.size());
+    mk.colors.reserve(selected_clusters.size());
+    for (const int cid : selected_clusters) {
+      geometry_msgs::Point p;
+      p.x = centers[cid][0];
+      p.y = centers[cid][1];
+      p.z = centers[cid][2];
+      mk.points.push_back(p);
+      mk.colors.push_back(ownerColor(cluster_owner[cid]));
+    }
+    voronoi_partition_marker_pub_.publish(mk);
+  }
+
+  // Keep clusters owned by self; fallback keeps all selected if none.
+  vector<int> keep_ids;
+  keep_ids.reserve(clu_n);
+  for (int j = 0; j < clu_n; ++j) {
+    const int node_id = topo_n + j;
+    if (owner[node_id] == self_idx) keep_ids.push_back(selected_clusters[j]);
+  }
+  bool fallback_keep_all_selected = false;
+  if (keep_ids.empty()) {
+    keep_ids = selected_clusters;
+    fallback_keep_all_selected = true;
+  }
+
+  if (ep_->voronoi_debug_) {
+    ROS_WARN_STREAM("[voronoiPartition] assignment detail:");
+    for (int cid = 0; cid < cluster_num; ++cid) {
+      std::ostringstream line;
+      line << "  cluster[" << cid << "] center=("
+           << centers[cid][0] << "," << centers[cid][1] << "," << centers[cid][2] << ")";
+      if (cluster_owner[cid] == -2) {
+        line << " owner=NA(local graph excluded)";
+      } else if (cluster_owner[cid] < 0) {
+        line << " owner=UNASSIGNED";
+      } else {
+        line << " owner_drone_id=" << (cluster_owner[cid] + 1)
+             << " dist=" << cluster_dist[cid];
+      }
+      ROS_WARN_STREAM(line.str());
+    }
+
+    std::ostringstream summary;
+    summary << "[voronoiPartition] keep_ids(" << keep_ids.size() << "): ";
+    for (const int id : keep_ids) summary << id << " ";
+    if (fallback_keep_all_selected) {
+      summary << " [fallback: no self-owned cluster, keep all selected]";
+    }
+    ROS_WARN_STREAM(summary.str());
+  }
+  frontier_finder_->retainClusterByIds(keep_ids);
 }
 
 } // namespace fast_planner

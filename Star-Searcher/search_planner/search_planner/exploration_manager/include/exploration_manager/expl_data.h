@@ -106,6 +106,14 @@ struct ExplorationParam {
   int drone_num_;
   int drone_id_;
 
+  // Voronoi Partitioning
+  double local_range_;
+  double connection_cache_resolution_;
+  double state_timeout_;
+  bool voronoi_debug_;
+  double voronoi_segment_length_;
+  double voronoi_cluster_r1_scale_;
+
   bool enable_fixed_hgrid_;
   bool perception_aware_local_;
   // Debug infomation switches

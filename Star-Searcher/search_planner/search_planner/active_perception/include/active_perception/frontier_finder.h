@@ -136,6 +136,7 @@ public:
   void getClusterTourIdx(const vector<int> indices, vector<int> &path_idx);
   void getClusterCenter(vector<Vector3d> &centers);
   void getUnreachableClusterCenters(vector<Vector3d> &centers);
+  void retainClusterByIds(const vector<int> &keep_ids);
   shared_ptr<PerceptionUtils> percep_utils_;
 
 private:

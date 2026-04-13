@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <tuw_global_router/router_node.h>
+#include <visualization_msgs/Marker.h>
 
 using Eigen::Vector3d;
 using std::shared_ptr;
@@ -53,6 +54,7 @@ public:
   shared_ptr<PlanningVisualization> visualization_;
   // unique_ptr<ViewFinder> view_finder_;
   shared_ptr<multi_robot_router::Router_Node> router_;
+  ros::Publisher voronoi_partition_marker_pub_;
 
 private:
   struct TSPConfig {
@@ -102,6 +104,10 @@ private:
   void clearExplorationData();
   double hausdorffDistance(const vector<Vector3d> &set1,
                            const vector<Vector3d> &set2, vector<int> &indices);
+  void voronoiPartition(const Vector3d &cur_pos, const Vector3d &cur_vel);
+  double voronoi_graph_resolution_ = 1.0;
+  Vector3d voronoi_graph_origin_ = Vector3d::Zero();
+  bool voronoi_graph_meta_initialized_ = false;
 
 public:
   typedef shared_ptr<FastExplorationManager> Ptr;

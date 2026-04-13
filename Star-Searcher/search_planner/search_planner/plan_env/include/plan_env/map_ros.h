@@ -31,6 +31,7 @@ public:
   MapROS();
   ~MapROS();
   void setMap(SDFMap *map);
+  int getZLayer() {return occupancy_grid_z_layer_;};
   void init();
   shared_ptr<multi_robot_router::Router_Node> router_;
 
@@ -149,6 +150,8 @@ private:
   double fuse_time_, esdf_time_, max_fuse_time_, max_esdf_time_;
   int fuse_num_, esdf_num_;
   pcl::PointCloud<pcl::PointXYZ> point_cloud_;
+
+  int occupancy_grid_z_layer_;
 
   normal_distribution<double> rand_noise_;
   default_random_engine eng_;

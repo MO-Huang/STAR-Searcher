@@ -100,6 +100,12 @@ public:
   double getZ();
   double getBeliefDist();
   MapROS* getMapROS() {return mr_.get();};
+  void getZLayer(int &z_layer) {z_layer = mr_->getZLayer();};
+  bool getVoronoiGraph(std::vector<tuw_graph::Segment> &segments) {
+    if (!vg_) return false;
+    segments = vg_->getSegments();
+    return true;
+  }
 
   // Swarm
   shared_ptr<MultiMapManager> mm_;

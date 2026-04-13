@@ -35,6 +35,7 @@ void MapROS::init() {
   node_.param("map_ros/show_all_map", show_all_map_, false);
   node_.param("map_ros/frame_id", frame_id_, string("world"));
   node_.param("map_ros/semantic_mode", semantic_mode, true);
+  node_.param("map_ros/occupancy_grid_z_layer", occupancy_grid_z_layer_, 17);
 
   node_.getParam("map_ros/camera_lidar_fusion/ptcloud_topic", ptcloud_topic);
   node_.getParam("map_ros/camera_lidar_fusion/image_topic", image_topic);
@@ -291,7 +292,7 @@ void MapROS::cameralidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
     esdf_need_update_ = true;
     local_updated_ = false;
   }
-  nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(17);
+  nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(occupancy_grid_z_layer_);
   nav_msgs_occupancy_grid_pub_.publish(grid);
   map_->vg_->generateGraph(grid);
   router_->updateMap(map_->vg_->getLongTermMap());
@@ -402,7 +403,7 @@ void MapROS::camerasemanticlidarCallback(const sensor_msgs::PointCloud2ConstPtr 
     esdf_need_update_ = true;
     local_updated_ = false;
     // ros::Time t1 = ros::Time::now();
-    nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(20);
+    nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(occupancy_grid_z_layer_);
     nav_msgs_occupancy_grid_pub_.publish(grid);
     // std::cout << "\033[33mmap_->vg_->generateGraph(grid);\033[0m" << std::endl;
     map_->vg_->generateGraph(grid);
