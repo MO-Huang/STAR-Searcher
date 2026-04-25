@@ -7,6 +7,8 @@
 #include <ros/ros.h>
 #include <poly_traj/polynomial_traj.h>
 #include <active_perception/perception_utils.h>
+#include <cctype>
+#include <string>
 
 #include <plan_manage/backward.hpp>
 namespace backward {
@@ -27,8 +29,25 @@ double traj_duration_;
 ros::Time start_time_;
 int traj_id_;
 int pub_traj_id_;
+int drone_id_ = 1;
 
 shared_ptr<PerceptionUtils> percep_utils_;
+
+int inferDroneIdFromNodeName() {
+  const std::string node_name = ros::this_node::getName();
+  const std::string key = "drone_";
+  const size_t pos = node_name.find(key);
+  if (pos == std::string::npos) return 1;
+
+  size_t begin = pos + key.size();
+  size_t end = begin;
+  while (end < node_name.size() &&
+         std::isdigit(static_cast<unsigned char>(node_name[end])))
+    ++end;
+
+  if (end == begin) return 1;
+  return std::stoi(node_name.substr(begin, end - begin));
+}
 
 // Info of replan
 bool receive_traj_ = false;
@@ -348,8 +367,10 @@ void cmdCallback(const ros::TimerEvent& e) {
   }
 
   double flight_t = (end_time - start_time).toSec();
-  ROS_WARN_THROTTLE(4, "flight time: %lf, actual flight time: %lf, path length: %lf, mean vel: %lf, energy is: % lf ", 
-                    flight_t, actual_flight_time, len, len / flight_t, energy);
+  ROS_WARN_THROTTLE(10,
+                    "[drone %d] flight time: %lf, actual flight time: %lf, path length: %lf, mean vel: %lf, energy is: % lf ",
+                    drone_id_, flight_t, actual_flight_time, len,
+                    len / flight_t, energy);
 
   last_time = time_now;
 
@@ -469,6 +490,9 @@ int main(int argc, char** argv) {
   nh.param("traj_server/pub_traj_id", pub_traj_id_, -1);
   nh.param("fsm/replan_time", replan_time_, 0.1);
   nh.param("loop_correction/isLoopCorrection", isLoopCorrection, false);
+  if (!nh.getParam("traj_server/drone_id", drone_id_)) {
+    drone_id_ = inferDroneIdFromNodeName();
+  }
 
   Eigen::Vector3d init_pos;
   nh.param("traj_server/init_x", init_pos[0], 0.0);

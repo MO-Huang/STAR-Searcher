@@ -236,8 +236,8 @@ void BsplineOptimizer::optimize() {
   if (optimize_time_) knot_span_ = best_variable_[variable_num_ - 1];
 
   if (cost_function_ & MINTIME) {
-    std::cout << "Iter num: " << iter_num_ << ", time: " << (ros::Time::now() - t1).toSec()
-              << ", point num: " << point_num_ << ", comb time: " << comb_time << std::endl;
+    // std::cout << "Iter num: " << iter_num_ << ", time: " << (ros::Time::now() - t1).toSec()
+    //           << ", point num: " << point_num_ << ", comb time: " << comb_time << std::endl;
   }
 
   // Deprecated

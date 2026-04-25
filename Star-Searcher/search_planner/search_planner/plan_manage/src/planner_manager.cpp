@@ -279,8 +279,8 @@ void FastPlannerManager::planExploreTraj(const vector<Eigen::Vector3d> &tour,
   seg_num = max(8, seg_num);
   double dt = duration / double(seg_num);
 
-  std::cout << "duration: " << duration << ", seg_num: " << seg_num
-            << ", dt: " << dt << std::endl;
+  // std::cout << "duration: " << duration << ", seg_num: " << seg_num
+  //           << ", dt: " << dt << std::endl;
 
   for (double ts = 0.0; ts <= duration + 1e-4; ts += dt)
     points.push_back(init_traj.evaluate(ts, 0));
@@ -1007,9 +1007,9 @@ void FastPlannerManager::planYawExplore(const Eigen::Vector3d &start_yaw,
   const int seg_num = 12;
   double dt_yaw = local_data_.duration_ / seg_num; // time of B-spline segment
   Eigen::Vector3d start_yaw3d = start_yaw;
-  std::cout << "dt_yaw: " << dt_yaw
-            << ", start yaw: " << start_yaw3d.transpose()
-            << ", end: " << end_yaw << std::endl;
+  // std::cout << "dt_yaw: " << dt_yaw
+  //           << ", start yaw: " << start_yaw3d.transpose()
+  //           << ", end: " << end_yaw << std::endl;
 
   while (start_yaw3d[0] < -M_PI)
     start_yaw3d[0] += 2 * M_PI;
