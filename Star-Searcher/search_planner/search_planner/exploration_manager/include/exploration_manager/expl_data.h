@@ -34,6 +34,9 @@ struct FSMParam {
   double replan_thresh3_;
   double replan_time_; // second
   bool show_tag;
+  bool show_blocked_seg_end;
+  bool show_frontier_points;
+  bool show_dormant_frontier_points;
 };
 
 struct DroneState {
@@ -57,6 +60,7 @@ struct ExplorationData {
   vector<Vector3d> inertia_tour_;
   vector<Vector3d> frontier_tour_;
   Vector3d blocked_seg_end_;
+  bool blocked_seg_end_valid_;
 
   vector<int> refined_ids_;
   vector<vector<Vector3d>> n_points_;
