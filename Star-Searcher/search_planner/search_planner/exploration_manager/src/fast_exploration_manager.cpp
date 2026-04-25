@@ -51,6 +51,10 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   voronoi_partition_marker_pub_ =
       nh.advertise<visualization_msgs::Marker>("/planning_vis/voronoi_partition", 1);
 
+  // Initialize debug points to safe defaults.
+  ed_->blocked_seg_end_.setZero();
+  ed_->blocked_seg_end_valid_ = false;
+
   nh.param("exploration/refine_local", ep_->refine_local_, true);
   nh.param("exploration/refined_num", ep_->refined_num_, -1);
   nh.param("exploration/refined_radius", ep_->refined_radius_, -1.0);
@@ -140,8 +144,8 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
   ros::Time t1 = ros::Time::now();
   auto t2 = t1;
   ed_->views_.clear();
-  std::cout << "start pos: " << pos.transpose() << ", vel: " << vel.transpose()
-            << ", acc: " << acc.transpose() << std::endl;
+  // std::cout << "start pos: " << pos.transpose() << ", vel: " << vel.transpose()
+  //           << ", acc: " << acc.transpose() << std::endl;
 
   // Search frontiers and group them into clusters
   // Find viewpoints (x,y,z,yaw) for all frontier clusters and get visible ones'
@@ -239,14 +243,15 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
           Astar::REACH_END) {
         // ROS_ERROR("No path to next viewpoint");
         // return FAIL;
-        ROS_ERROR("No path to next viewpoint (%f, %f, %f).", next_pos[0], next_pos[1], next_pos[2]);
+        // ROS_ERROR("No path to next viewpoint (%f, %f, %f).", next_pos[0], next_pos[1], next_pos[2]);
         frontier_finder_->removeUnreachableCluster(ed_->global_tour_idx_[0]);
         frontier_finder_->getFrontierDivision(division_clusters);
         if(division_clusters.size() > 0)
             continue;
         else {
           // bool found_blocked = false;
-          printf("\033[33mTry to find blocked seg.\033[0m\n");
+          // printf("\033[33m[drone %d] Try to find blocked seg.\033[0m\n",
+          //        ep_->drone_id_);
           vector<Eigen::Vector3d> unreachable_centers;
           frontier_finder_->getUnreachableClusterCenters(unreachable_centers);
           if (router_->search(pos, unreachable_centers[0]) == multi_robot_router::Router_Node::REACH_END){
@@ -254,8 +259,10 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
             vector<Eigen::Vector3d> blocked_seg = router_->getBlockedPathSeg();
             if(blocked_seg.size() > 0) {
               // printf("\033[33mThe size of found blocked seg is %lu.\033[0m\n", blocked_seg.size());
-              printf("\033[33mfound blocked seg: [%f, %f, %f] to [%f, %f, %f].\033[0m\n", 
-                      blocked_seg[0][0], blocked_seg[0][1], blocked_seg[0][2], blocked_seg[1][0], blocked_seg[1][1], blocked_seg[1][2]);
+              printf("\033[33m[drone %d] found blocked seg: [%f, %f, %f] to [%f, %f, %f].\033[0m\n",
+                     ep_->drone_id_, blocked_seg[0][0], blocked_seg[0][1],
+                     blocked_seg[0][2], blocked_seg[1][0], blocked_seg[1][1],
+                     blocked_seg[1][2]);
               // return FAIL;
               bool found = false;
               // double n = 1.5;
@@ -297,8 +304,11 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
                   }
                 }
               }
-              printf("\033[33mcurrent pose:[%f, %f, %f], waiting point: [%f, %f, %f]\033[0m\n", pos[0], pos[1], pos[2], next_pos[0], next_pos[1], next_pos[2]);
+              // printf("\033[33m[drone %d] current pose:[%f, %f, %f], waiting point: [%f, %f, %f]\033[0m\n",
+              //        ep_->drone_id_, pos[0], pos[1], pos[2], next_pos[0],
+              //        next_pos[1], next_pos[2]);
               ed_->blocked_seg_end_ = blocked_seg[1];
+              ed_->blocked_seg_end_valid_ = true;
               Eigen::Vector3d dir = (blocked_seg[1] - blocked_seg[0]).normalized();
               next_yaw = {atan2(dir[1], dir[0])};
               frontier_finder_->wrapYaw(next_yaw[0]);
@@ -312,7 +322,8 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
                   return FAIL;
                 }
               }
-              printf("\033[32m Found path to the blocked path seg.\033[0m\n");
+              printf("\033[32m[drone %d] Found path to the blocked path seg.\033[0m\n",
+                     ep_->drone_id_);
               go_wait_trav = true;
             }
             else {
@@ -343,8 +354,8 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
         max(yaw_time_lb,
             pos_time_lb); // max(max(yaw_time_lb, pos_time_lb), min_time_lb);
 
-    std::cout << "Size of Path_Next_Goal:" << ed_->path_next_goal_.size() << ","
-              << " Path length:" << len << std::endl;
+    // std::cout << "Size of Path_Next_Goal:" << ed_->path_next_goal_.size() << ","
+    //           << " Path length:" << len << std::endl;
 
     if (len < radius_far) {
       // Next viewpoint is very close, no need to search kinodynamic path, just
@@ -384,10 +395,10 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
     t1 = ros::Time::now();
 
     double yaw_time = (ros::Time::now() - t1).toSec();
-    ROS_WARN("Traj: %lf, yaw: %lf", traj_plan_time, yaw_time);
+    // ROS_WARN("Traj: %lf, yaw: %lf", traj_plan_time, yaw_time);
     double total = (ros::Time::now() - t2).toSec();
-    ROS_WARN("Total time: %lf", total);
-    ROS_ERROR_COND(total > 0.1, "Total time too long!!!");
+    // ROS_WARN("Total time: %lf", total);
+    // ROS_ERROR_COND(total > 0.1, "Total time too long!!!");
     if (next_yaw.size() > 1) {
       planner_manager_->local_data_.spiral_max_yaw_ = max_yaw;
       planner_manager_->local_data_.spiral_min_yaw_ = min_yaw;
@@ -401,6 +412,11 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
       planner_manager_->local_data_.go_wait_trav_ = false;
     return SUCCEED;
   }
+}
+
+void FastExplorationManager::refreshVoronoiPartition(const Vector3d &cur_pos,
+                                                     const Vector3d &cur_vel) {
+  voronoiPartition(cur_pos, cur_vel);
 }
 
 void FastExplorationManager::shortenPath(vector<Vector3d> &path) {
@@ -940,8 +956,8 @@ void FastExplorationManager::solveTSP(const Eigen::MatrixXd &cost_matrix,
       // cost:
       // %.2f",
       //          config.problem_name_.c_str(), cost);
-      std::cout << "[ActiveExplorationManager] TSP problem name: "
-                << config.problem_name_ << ", total cost: " << total_cost;
+      // std::cout << "[ActiveExplorationManager] TSP problem name: "
+      //           << config.problem_name_ << ", total cost: " << total_cost;
     }
     if (res.compare("TOUR_SECTION") == 0)
       break;
@@ -1243,7 +1259,7 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
     if (queryPathCost(cur_pos, topo_nodes[tid].pos_, c)) {
       local_topo_ids.push_back(tid);
     } else {
-      logQueryFail("local_topo_ids:cur_to_topo", cur_pos, topo_nodes[tid].pos_);
+      // logQueryFail("local_topo_ids:cur_to_topo", cur_pos, topo_nodes[tid].pos_);
     }
   }
   if (local_topo_ids.empty()) {
@@ -1252,7 +1268,7 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
     for (int i = 0; i < static_cast<int>(topo_nodes.size()); ++i) {
       double c = 0.0;
       if (!queryPathCost(cur_pos, topo_nodes[i].pos_, c)) {
-        logQueryFail("local_topo_ids_fallback:cur_to_topo", cur_pos, topo_nodes[i].pos_);
+        // logQueryFail("local_topo_ids_fallback:cur_to_topo", cur_pos, topo_nodes[i].pos_);
         continue;
       }
       if (c < best_cost) {
@@ -1304,7 +1320,7 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
           }
           found = true;
         } else {
-          logQueryFail("cluster_bind:topo_to_center", topo_nodes[tid].pos_, centers[cid]);
+          // logQueryFail("cluster_bind:topo_to_center", topo_nodes[tid].pos_, centers[cid]);
         }
         ++start_idx;
       }
@@ -1336,7 +1352,12 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
     const int tid = cluster_best_topo[cid];
     if (tid >= 0 && is_local_topo[tid]) selected_clusters.push_back(cid);
   }
-  if (selected_clusters.empty()) return;
+  if (selected_clusters.empty()) {
+    ROS_WARN_STREAM("[voronoiPartition][drone " << ep_->drone_id_
+                    << "] No local cluster found (selected_clusters is empty); "
+                    << "skip partition update.");
+    return;
+  }
   if (ep_->voronoi_debug_) {
     std::ostringstream ss;
     ss << "[voronoiPartition] selected_clusters(" << selected_clusters.size() << "): ";
@@ -1371,7 +1392,7 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
       if (queryPathCost(dr.pos_, topo_nodes[tid].pos_, c)) {
         info.overlap_topo_ids_.push_back(tid);
       } else {
-        logQueryFail("local_drones:dr_to_topo", dr.pos_, topo_nodes[tid].pos_);
+        // logQueryFail("local_drones:dr_to_topo", dr.pos_, topo_nodes[tid].pos_);
       }
     }
 
@@ -1389,7 +1410,7 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
       if (queryPathCost(dr.pos_, centers[cid], c)) {
         info.overlap_cluster_ids_.push_back(cid);
       } else {
-        logQueryFail("local_drones:dr_to_center", dr.pos_, centers[cid]);
+        // logQueryFail("local_drones:dr_to_center", dr.pos_, centers[cid]);
       }
     }
 
@@ -1475,7 +1496,7 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
           tryPush(it_local->second, d, info.dr_.drone_idx_);
         }
       } else {
-        logQueryFail("seed_dist:dr_to_topo", info.dr_.pos_, topo_nodes[tid].pos_);
+        // logQueryFail("seed_dist:dr_to_topo", info.dr_.pos_, topo_nodes[tid].pos_);
       }
     }
     for (const int cid : info.overlap_cluster_ids_) {
@@ -1492,7 +1513,7 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
           tryPush(topo_n + local_cluster_idx, d, info.dr_.drone_idx_);
         }
       } else {
-        logQueryFail("seed_dist:dr_to_center", info.dr_.pos_, centers[cid]);
+        // logQueryFail("seed_dist:dr_to_center", info.dr_.pos_, centers[cid]);
       }
     }
   }
