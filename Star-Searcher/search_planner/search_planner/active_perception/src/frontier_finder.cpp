@@ -41,6 +41,7 @@ FrontierFinder::FrontierFinder(const EDTEnvironment::Ptr &edt,
            -1.0);
   nh.param("frontier/tsp_dir_", tsp_dir_, string("null"));
   nh.param("frontier/frt_cluster_radius", frt_cluster_radius_, -1.0);
+  nh.param("exploration/drone_id", drone_id_, -1);
 
   raycaster_.reset(new RayCaster);
   resolution_ = edt_env_->sdf_map_->getResolution();
@@ -89,6 +90,11 @@ void FrontierFinder::searchFrontiers(Eigen::Vector3d cur_pos) {
     if (haveOverlap(frontiers_[iter].box_min_, frontiers_[iter].box_max_,
                     update_min, update_max) &&
         isFrontierChanged(frontiers_[iter])) {
+      // const auto &frontier = frontiers_[iter];
+      // ROS_WARN(
+      //     "[drone %d][FrontierFinder] resetFlag triggered for active frontier: "
+      //     "iter=%d frontier_id=%d cells=%zu",
+      //     drone_id_, iter, frontier.id_, frontier.cells_.size());
 
       resetFlag(iter, frontiers_);
       removed_ids_.push_back(rmv_idx);
@@ -103,9 +109,14 @@ void FrontierFinder::searchFrontiers(Eigen::Vector3d cur_pos) {
     if (haveOverlap(dormant_frontiers_[iter].box_min_,
                     dormant_frontiers_[iter].box_max_, update_min,
                     update_max) &&
-        isFrontierChanged(dormant_frontiers_[iter]))
+        isFrontierChanged(dormant_frontiers_[iter])) {
+      // const auto &frontier = dormant_frontiers_[iter];
+      // ROS_WARN(
+      //     "[drone %d][FrontierFinder] resetFlag triggered for dormant frontier: "
+      //     "iter=%d frontier_id=%d cells=%zu",
+      //     drone_id_, iter, frontier.id_, frontier.cells_.size());
       resetFlag(iter, dormant_frontiers_);
-    else
+    } else
       ++iter;
   }
 
@@ -862,9 +873,131 @@ void FrontierFinder::computeNormal(const vector<Vector3d> &point_cloud,
 void FrontierFinder::computeFrontiersToVisit(Eigen::Vector3d cur_pos) {
   ros::Time t1 = ros::Time::now();
   bool insert_frontier = false;
+  bool rebuild_frontier_cost_matrix = false;
   int new_num = 0;
   int new_dormant_num = 0;
   first_new_frt_ = -1;
+
+  auto isCurrentFrontierCell = [&](const Vector3d &cell) {
+    Eigen::Vector3i idx;
+    edt_env_->sdf_map_->posToIndex(cell, idx);
+    return knownfree(idx) &&
+           (isNeighborUnderObserved(idx) || isNeighborUnknown(idx) ||
+            isNeighborInterestedAndNotFresh(idx));
+  };
+
+  auto clearFrontierFlags = [&](const Frontier &frontier) {
+    for (const auto &cell : frontier.cells_) {
+      Eigen::Vector3i idx;
+      edt_env_->sdf_map_->posToIndex(cell, idx);
+      frontier_flag_[toadr(idx)] = 0;
+    }
+  };
+
+  auto sortViewpoints = [&](Frontier &frontier) {
+    auto compare = [&](const Viewpoint &v1, const Viewpoint &v2) {
+      Eigen::Vector3d pos_dir = cur_pos - frontier.average_;
+      if (pos_dir.norm() > 1e-3)
+        pos_dir.normalize();
+      else
+        pos_dir = frontier.normal_;
+
+      Eigen::Vector3d v1_dir = v1.pos_ - frontier.average_;
+      Eigen::Vector3d v2_dir = v2.pos_ - frontier.average_;
+      if (v1_dir.norm() > 1e-3)
+        v1_dir.normalize();
+      else
+        v1_dir = pos_dir;
+      if (v2_dir.norm() > 1e-3)
+        v2_dir.normalize();
+      else
+        v2_dir = pos_dir;
+
+      double score_v1 =
+          abs(frontier.normal_.dot(v1_dir)) * pos_dir.dot(v1_dir) * v1.visib_num_;
+      double score_v2 =
+          abs(frontier.normal_.dot(v2_dir)) * pos_dir.dot(v2_dir) * v2.visib_num_;
+      return score_v1 > score_v2;
+    };
+
+    sort(frontier.viewpoints_.begin(), frontier.viewpoints_.end(), compare);
+  };
+
+  for (int iter = 0; iter < frontiers_.size();) {
+    auto &frontier = frontiers_[iter];
+    const bool had_top_view = !frontier.viewpoints_.empty();
+    Vector3d old_top_pos = Vector3d::Zero();
+    double old_top_yaw = 0.0;
+    if (had_top_view) {
+      old_top_pos = frontier.viewpoints_.front().pos_;
+      old_top_yaw = frontier.viewpoints_.front().yaw_;
+    }
+
+    vector<Vector3d> remaining_cells;
+    remaining_cells.reserve(frontier.cells_.size());
+    for (const auto &cell : frontier.cells_) {
+      if (isCurrentFrontierCell(cell))
+        remaining_cells.push_back(cell);
+    }
+
+    if (remaining_cells.size() <= cluster_min_) {
+      Frontier removed_frontier = frontier;
+      clearFrontierFlags(removed_frontier);
+      frontiers_.erase(frontiers_.begin() + iter);
+      rebuild_frontier_cost_matrix = true;
+      continue;
+    }
+
+    if (remaining_cells.size() != frontier.cells_.size()) {
+      frontier.cells_ = remaining_cells;
+      computeFrontierInfo(frontier);
+      rebuild_frontier_cost_matrix = true;
+    }
+
+    for (auto &view : frontier.viewpoints_) {
+      view.visib_num_ =
+          countVisibleCells(view.pos_, view.yaw_, frontier.cells_, frontier.type_,
+                            false);
+    }
+
+    const auto old_viewpoint_num = frontier.viewpoints_.size();
+    frontier.viewpoints_.erase(
+        std::remove_if(frontier.viewpoints_.begin(), frontier.viewpoints_.end(),
+                       [&](const Viewpoint &view) {
+                         return view.visib_num_ < min_visib_num_;
+                       }),
+        frontier.viewpoints_.end());
+
+    if (frontier.viewpoints_.size() != old_viewpoint_num)
+      rebuild_frontier_cost_matrix = true;
+
+    if (frontier.viewpoints_.empty()) {
+      sampleViewpoints(frontier);
+      rebuild_frontier_cost_matrix = true;
+    }
+
+    if (frontier.viewpoints_.empty()) {
+      Frontier dormant_frontier = frontier;
+      dormant_frontier.viewpoints_.clear();
+      ROS_WARN(
+          "[drone %d][FrontierFinder] old frontier moved to dormant: "
+          "iter=%d frontier_id=%d cells=%zu",
+          drone_id_, iter, dormant_frontier.id_, dormant_frontier.cells_.size());
+      clearFrontierFlags(dormant_frontier);
+      dormant_frontiers_.push_back(dormant_frontier);
+      frontiers_.erase(frontiers_.begin() + iter);
+      continue;
+    }
+
+    sortViewpoints(frontier);
+    if (had_top_view &&
+        ((frontier.viewpoints_.front().pos_ - old_top_pos).norm() > 1e-3 ||
+         fabs(frontier.viewpoints_.front().yaw_ - old_top_yaw) > 1e-3)) {
+      rebuild_frontier_cost_matrix = true;
+    }
+    ++iter;
+  }
+
   // Try find viewpoints for each cluster and categorize them according to
   // viewpoint number
   for (auto &tmp_ftr : tmp_frontiers_) {
@@ -875,20 +1008,7 @@ void FrontierFinder::computeFrontiersToVisit(Eigen::Vector3d cur_pos) {
       vector<Frontier>::iterator inserted =
           frontiers_.insert(frontiers_.end(), tmp_ftr);
       // Sort the viewpoints by coverage fraction, best view in front
-
-      auto compare = [=](const Viewpoint &v1, const Viewpoint &v2) {
-        Eigen::Vector3d pos_dir = (cur_pos - inserted->average_).normalized();
-        Eigen::Vector3d v1_dir = (v1.pos_ - inserted->average_).normalized();
-        Eigen::Vector3d v2_dir = (v2.pos_ - inserted->average_).normalized();
-        double score_v1 = abs(inserted->normal_.dot(v1_dir)) *
-                          pos_dir.dot(v1_dir) * v1.visib_num_;
-        double score_v2 = abs(inserted->normal_.dot(v2_dir)) *
-                          pos_dir.dot(v2_dir) * v2.visib_num_;
-        // double score_v1 = pos_dir.dot(v1_dir) * v1.visib_num_;
-        // double score_v2 = pos_dir.dot(v2_dir) * v2.visib_num_;
-        return score_v1 > score_v2;
-      };
-      sort(inserted->viewpoints_.begin(), inserted->viewpoints_.end(), compare);
+      sortViewpoints(*inserted);
 
       if (!insert_frontier) {
         first_new_frt_ = frontiers_.size() - 1;
@@ -916,6 +1036,14 @@ void FrontierFinder::computeFrontiersToVisit(Eigen::Vector3d cur_pos) {
   for (auto &ft : frontiers_) {
     ft.id_ = idx++;
     // std::cout << ft.id_ << ", ";
+  }
+  if (rebuild_frontier_cost_matrix) {
+    removed_ids_.clear();
+    first_new_frt_ = frontiers_.empty() ? -1 : 0;
+    for (auto &ft : frontiers_) {
+      ft.costs_.clear();
+      ft.paths_.clear();
+    }
   }
   // std::cout << "\nnew num: " << new_num << ", new dormant: " << new_dormant_num
   //           << std::endl;
