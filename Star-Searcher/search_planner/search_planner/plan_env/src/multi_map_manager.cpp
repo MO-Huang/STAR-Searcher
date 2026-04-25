@@ -482,6 +482,9 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
   // rot << cos(yaw), -sin(yaw), 0, sin(yaw), cos(yaw), 0, 0, 0, 1;
   // Eigen::Vector3d trans = transform.head<3>();
 
+  bool has_update = false;
+  Eigen::Vector3d update_min, update_max;
+
   for (int i = 0; i < chunk.voxel_adrs_.size(); ++i) {
     // Insert occ info
 
@@ -495,6 +498,17 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
 
     // pos = rot * pos + trans;
     if (!map_->isInMap(pos)) continue;
+
+    if (!has_update) {
+      update_min = pos;
+      update_max = pos;
+      has_update = true;
+    } else {
+      for (int k = 0; k < 3; ++k) {
+        update_min[k] = min(update_min[k], pos[k]);
+        update_max[k] = max(update_max[k], pos[k]);
+      }
+    }
 
     map_->posToIndex(pos, idx);
     auto adr_tf = map_->toAddress(idx);
@@ -545,6 +559,19 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
       //     map_->md_->occupancy_buffer_inflate_[idx_inf] = 1;
       //   }
       // }
+    }
+  }
+
+  if (!has_update) return;
+
+  if (map_->md_->reset_updated_box_) {
+    map_->md_->update_min_ = update_min;
+    map_->md_->update_max_ = update_max;
+    map_->md_->reset_updated_box_ = false;
+  } else {
+    for (int k = 0; k < 3; ++k) {
+      map_->md_->update_min_[k] = min(map_->md_->update_min_[k], update_min[k]);
+      map_->md_->update_max_[k] = max(map_->md_->update_max_[k], update_max[k]);
     }
   }
 }
