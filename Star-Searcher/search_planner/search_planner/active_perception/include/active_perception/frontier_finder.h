@@ -211,6 +211,7 @@ private:
   double division_ratio_;
   string tsp_dir_;
   double frt_cluster_radius_;
+  int drone_id_;
 
   // Utils
   ros::Publisher debug_pts_, debug_marker_, debug_pts1_;
