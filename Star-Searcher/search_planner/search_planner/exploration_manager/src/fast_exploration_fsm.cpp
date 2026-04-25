@@ -23,6 +23,9 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   nh.param("fsm/thresh_replan3", fp_->replan_thresh3_, -1.0);
   nh.param("fsm/replan_time", fp_->replan_time_, -1.0);
   nh.param("fsm/show_tag", fp_->show_tag, false);
+  nh.param("fsm/show_blocked_seg_end", fp_->show_blocked_seg_end, true);
+  nh.param("fsm/show_frontier_points", fp_->show_frontier_points, true);
+  nh.param("fsm/show_dormant_frontier_points", fp_->show_dormant_frontier_points, true);
 
   /* Initialize main modules */
   expl_manager_.reset(new FastExplorationManager);
@@ -33,6 +36,7 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   planner_manager_ = expl_manager_->planner_manager_;
   percep_utils_.reset(new PerceptionUtils(nh));
   state_ = EXPL_STATE::INIT;
+  wait_trav_need_refresh_ = false;
   fd_->have_odom_ = false;
   fd_->state_str_ = {"INIT", "WAIT_TRIGGER", "PLAN_TRAJ", "PUB_TRAJ",
                      "EXEC_TRAJ", "FINISH", "SPIRAL", "WAIT_FRONTIER", "WAIT_TRAV"};
@@ -92,7 +96,9 @@ int FastExplorationFSM::getId() {
 void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
   std_msgs::Int32 state_flag;
   ROS_INFO_STREAM_THROTTLE(1.0,
-                           "[FSM]: state: " << fd_->state_str_[int(state_)]);
+                           "[FSM][drone " << getId()
+                                           << "]: state: "
+                                           << fd_->state_str_[int(state_)]);
 
   switch (state_) {
   case INIT: {
@@ -272,10 +278,10 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
 
   case WAIT_TRAV: {
     state_flag.data = WAIT_TRAV;
-    expl_manager_->frontier_finder_->searchFrontiers(fd_->odom_pos_);
-    expl_manager_->frontier_finder_->computeFrontiersToVisit(fd_->odom_pos_);
-    bool neighbor;
-    expl_manager_->frontier_finder_->clusterFrontiers(fd_->odom_pos_, neighbor);
+    if (wait_trav_need_refresh_) {
+      updateWaitTravFrontiers(true);
+      wait_trav_need_refresh_ = false;
+    }
     vector<Eigen::Vector3d> centers;
     expl_manager_->frontier_finder_->getClusterCenter(centers);
     Eigen::Vector3d pos = fd_->odom_pos_;
@@ -284,7 +290,8 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
     for (auto center : centers) {
       if(planner_manager_->path_finder_->search(pos, center) == Astar::REACH_END) {
         traversable = true;
-        printf("\033[32mTured traversable, traversable center:[%f, %f, %f].\033[0m\n", center[0], center[1], center[2]);
+        // printf("\033[32m[drone %d] Tured traversable, traversable center:[%f, %f, %f].\033[0m\n",
+        //        getId(), center[0], center[1], center[2]);
         transitState(PLAN_TRAJ, "FSM");
         break;
       }
@@ -293,7 +300,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
       break;
     planner_manager_->path_finder_->reset();
     if(planner_manager_->path_finder_->search(pos, expl_manager_->ed_->blocked_seg_end_) == Astar::REACH_END) {
-      printf("\033[32mThe blocked seg end [%f, %f, %f] tured traversable.\033[0m\n", expl_manager_->ed_->blocked_seg_end_[0], expl_manager_->ed_->blocked_seg_end_[1], expl_manager_->ed_->blocked_seg_end_[2]);
+      // printf("\033[32mThe blocked seg end [%f, %f, %f] tured traversable.\033[0m\n", expl_manager_->ed_->blocked_seg_end_[0], expl_manager_->ed_->blocked_seg_end_[1], expl_manager_->ed_->blocked_seg_end_[2]);
       transitState(PLAN_TRAJ, "FSM");
       break;
     }
@@ -388,6 +395,32 @@ void FastExplorationFSM::visualize() {
   visualization_->drawBspline(info->position_traj_, 0.1,
                               Vector4d(1.0, 0.0, 0.0, 1), false, 0.15,
                               Vector4d(1, 1, 0, 1));
+  if(fp_->show_blocked_seg_end){
+    // Debug: show the end of blocked segment when waiting for traversability.
+    Eigen::Vector3d blocked_end = ed_ptr->blocked_seg_end_;
+    const bool blocked_valid =
+        ed_ptr->blocked_seg_end_valid_ && blocked_end.allFinite() &&
+        blocked_end.array().abs().maxCoeff() < 1e4;
+    if (blocked_valid) {
+      vector<Eigen::Vector3d> blocked_pts{blocked_end};
+      visualization_->drawSpheres(blocked_pts, 0.25,
+                                  PlanningVisualization::Color::Orange(),
+                                  "blocked_seg_end", 0,
+                                  PlanningVisualization::PUBLISHER::DEBUG);
+      visualization_->drawText(blocked_end + Eigen::Vector3d(0, 0, 0.4),
+                              "blocked_seg_end", 0.3,
+                              PlanningVisualization::Color::Orange(),
+                              "blocked_seg_end_text", 0,
+                              PlanningVisualization::PUBLISHER::DEBUG);
+    } else {
+      visualization_->drawSpheres({}, 0.25,
+                                  PlanningVisualization::Color::Orange(),
+                                  "blocked_seg_end", 0,
+                                  PlanningVisualization::PUBLISHER::DEBUG);
+      visualization_->removeText("blocked_seg_end_text", 0,
+                                PlanningVisualization::PUBLISHER::DEBUG);
+    }
+  }
 
   vector<vector<Eigen::Vector3d>> frontier_division;
   ft->getFrontierDivision(frontier_division);
@@ -402,72 +435,76 @@ void FastExplorationFSM::visualize() {
                                 PlanningVisualization::PUBLISHER::VIEWPOINT);
   }
 
-  int frts_pts_num = 0;
-  for (int i = 0; i < ed_ptr->frontiers_.size(); ++i) {
-    frts_pts_num += ed_ptr->frontiers_[i].size();
-  }
-  static pcl::PointCloud<pcl::PointXYZRGBA> cloud;
-  cloud.points.clear();
-  cloud.points.reserve(frts_pts_num);
-  cloud.width = frts_pts_num;
-  cloud.height = 1;
-  cloud.is_dense = true;
-  cloud.header.frame_id = "world";
-  int i = 0;
-  for (auto ft : ed_ptr->frontiers_) {
-    i++;
-    int j = 0;
-    while (j < ft.size()) {
-      pcl::PointXYZRGBA pt;
-      Eigen::Vector4d color = 
-          visualization_->getColor(0.0, 0.3);
-      pt.x = ft[j].x();
-      pt.y = ft[j].y();
-      pt.z = ft[j].z();
-      pt.r = color(0) * 255;
-      pt.g = color(1) * 255;
-      pt.b = color(2) * 255;
-      pt.a = 50;
-      cloud.push_back(pt);
-      j++;
+  if(fp_->show_frontier_points) {
+    int frts_pts_num = 0;
+    for (int i = 0; i < ed_ptr->frontiers_.size(); ++i) {
+      frts_pts_num += ed_ptr->frontiers_[i].size();
     }
+    static pcl::PointCloud<pcl::PointXYZRGBA> cloud;
+    cloud.points.clear();
+    cloud.points.reserve(frts_pts_num);
+    cloud.width = frts_pts_num;
+    cloud.height = 1;
+    cloud.is_dense = true;
+    cloud.header.frame_id = "world";
+    int i = 0;
+    for (auto ft : ed_ptr->frontiers_) {
+      i++;
+      int j = 0;
+      while (j < ft.size()) {
+        pcl::PointXYZRGBA pt;
+        Eigen::Vector4d color = 
+            visualization_->getColor(0.0, 0.3);
+        pt.x = ft[j].x();
+        pt.y = ft[j].y();
+        pt.z = ft[j].z();
+        pt.r = color(0) * 255;
+        pt.g = color(1) * 255;
+        pt.b = color(2) * 255;
+        pt.a = 50;
+        cloud.push_back(pt);
+        j++;
+      }
+    }
+    sensor_msgs::PointCloud2::Ptr cloud_msg(new sensor_msgs::PointCloud2);
+    //std::cout << "\033[42mcloud.width = " << cloud.width << ", cloud.points.size() = " << cloud.points.size() << "\033[0m" << std::endl;
+    pcl::toROSMsg(cloud, *cloud_msg);
+    visualization_->frts_pub_.publish(cloud_msg);
   }
-  sensor_msgs::PointCloud2::Ptr cloud_msg(new sensor_msgs::PointCloud2);
-  //std::cout << "\033[42mcloud.width = " << cloud.width << ", cloud.points.size() = " << cloud.points.size() << "\033[0m" << std::endl;
-  pcl::toROSMsg(cloud, *cloud_msg);
-  visualization_->frts_pub_.publish(cloud_msg);
   
-  // int dormant_frts_pts_num = 0;
-  // vector<vector<Vector3d>> dormant_frontiers;
-  // ft->getDormantFrontiers(dormant_frontiers);
-  // for (int i = 0; i < dormant_frontiers.size(); ++i) {
-  //   dormant_frts_pts_num += dormant_frontiers[i].size();
-  // }
-  // pcl::PointCloud<pcl::PointXYZRGBA> dormant_cloud;
-  // dormant_cloud.width = dormant_frts_pts_num;
-  // dormant_cloud.height = 1;
-  // dormant_cloud.is_dense = true;
-  // dormant_cloud.header.frame_id = "world";
-  // for (auto ft : dormant_frontiers) {
-  //   int j = 0;
-  //   while (j < ft.size()) {
-  //     pcl::PointXYZRGBA pt;
-  //     Eigen::Vector4d color =
-  //         visualization_->getColor(2.0 / 6, 0.3);
-  //     pt.x = ft[j].x();
-  //     pt.y = ft[j].y();
-  //     pt.z = ft[j].z();
-  //     pt.r = color(0) * 255;
-  //     pt.g = color(1) * 255;
-  //     pt.b = color(2) * 255;
-  //     pt.a = 50;
-  //     dormant_cloud.push_back(pt);
-  //     j++;
-  //   }
-  // }
-  // sensor_msgs::PointCloud2::Ptr dormant_cloud_msg(new sensor_msgs::PointCloud2);
-  // pcl::toROSMsg(dormant_cloud, *dormant_cloud_msg);
-  // visualization_->dormant_frts_pub_.publish(dormant_cloud_msg);
+  if(fp_->show_dormant_frontier_points) {
+    int dormant_frts_pts_num = 0;
+    vector<vector<Vector3d>> dormant_frontiers;
+    ft->getDormantFrontiers(dormant_frontiers);
+    for (int i = 0; i < dormant_frontiers.size(); ++i) {
+      dormant_frts_pts_num += dormant_frontiers[i].size();
+    }
+    pcl::PointCloud<pcl::PointXYZRGBA> dormant_cloud;
+    dormant_cloud.width = dormant_frts_pts_num;
+    dormant_cloud.height = 1;
+    dormant_cloud.is_dense = true;
+    dormant_cloud.header.frame_id = "world";
+    for (auto ft : dormant_frontiers) {
+      int j = 0;
+      while (j < ft.size()) {
+        pcl::PointXYZRGBA pt;
+        Eigen::Vector4d color =
+            visualization_->getColor(2.0 / 6, 0.3);
+        pt.x = ft[j].x();
+        pt.y = ft[j].y();
+        pt.z = ft[j].z();
+        pt.r = color(0) * 255;
+        pt.g = color(1) * 255;
+        pt.b = color(2) * 255;
+        pt.a = 50;
+        dormant_cloud.push_back(pt);
+        j++;
+      }
+    }
+    sensor_msgs::PointCloud2::Ptr dormant_cloud_msg(new sensor_msgs::PointCloud2);
+    pcl::toROSMsg(dormant_cloud, *dormant_cloud_msg);
+    visualization_->dormant_frts_pub_.publish(dormant_cloud_msg);
+  }
 }
 
 void FastExplorationFSM::clearVisMarker() {
@@ -482,6 +519,20 @@ void FastExplorationFSM::clearVisMarker() {
 
   // visualization_->drawLines({}, {}, 0.03, Vector4d(1, 0, 0, 1),
   // "current_pose", 0, 6);
+}
+
+void FastExplorationFSM::updateWaitTravFrontiers(const bool apply_partition) {
+  auto ft = expl_manager_->frontier_finder_;
+  ft->searchFrontiers(fd_->odom_pos_);
+  ft->computeFrontiersToVisit(fd_->odom_pos_);
+
+  bool neighbor;
+  ft->clusterFrontiers(fd_->odom_pos_, neighbor);
+  ft->getFrontiers(expl_manager_->ed_->frontiers_);
+
+  if (apply_partition) {
+    expl_manager_->refreshVoronoiPartition(fd_->odom_pos_, fd_->odom_vel_);
+  }
 }
 
 void FastExplorationFSM::frontierCallback(const ros::TimerEvent &e) {
@@ -545,6 +596,8 @@ void FastExplorationFSM::frontierCallback(const ros::TimerEvent &e) {
     // cloud.header.frame_id = "world";
     // sensor_msgs::PointCloud2::Ptr cloud_msg(new sensor_msgs::PointCloud2);
     // pcl::toROSMsg(cloud, *cloud_msg);
+  } else if (state_ == WAIT_TRAV) {
+    updateWaitTravFrontiers(true);
   }
 }
 
@@ -614,7 +667,7 @@ void FastExplorationFSM::safetyCallback(const ros::TimerEvent &e) {
     double dist;
     bool safe = planner_manager_->checkTrajCollision(dist);
     if (!safe) {
-      fd_->static_state_ = true;
+      // fd_->static_state_ = true;
       ROS_WARN("Replan: collision detected==================================");
       transitState(PLAN_TRAJ, "safetyCallback");
     }
@@ -646,8 +699,14 @@ void FastExplorationFSM::odometryCallback(
 void FastExplorationFSM::transitState(EXPL_STATE new_state, string pos_call) {
   int pre_s = int(state_);
   state_ = new_state;
-  cout << "[" + pos_call + "]: from " + fd_->state_str_[pre_s] + " to " +
-              fd_->state_str_[int(new_state)]
+  if (new_state == WAIT_TRAV && pre_s != int(WAIT_TRAV)) {
+    wait_trav_need_refresh_ = true;
+  } else if (new_state != WAIT_TRAV) {
+    wait_trav_need_refresh_ = false;
+  }
+  cout << "[" + pos_call + "][drone " << getId() << "]: from "
+       << fd_->state_str_[pre_s] << " to "
+       << fd_->state_str_[int(new_state)]
        << endl;
 }
 
