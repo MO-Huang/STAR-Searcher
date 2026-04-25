@@ -61,6 +61,7 @@ private:
   EXPL_STATE state_;
 
   bool classic_;
+  bool wait_trav_need_refresh_;
 
   std::map<int, geometry_msgs::TransformStamped> tag_poses;
   std::unique_ptr<tf2_ros::TransformListener> tf_listener_ptr_;
@@ -87,6 +88,7 @@ private:
   void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
   void visualize();
   void clearVisMarker();
+  void updateWaitTravFrontiers(const bool apply_partition);
 
   // Swarm
   void droneStateTimerCallback(const ros::TimerEvent& e);

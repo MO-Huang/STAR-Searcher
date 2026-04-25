@@ -37,6 +37,7 @@ public:
   int planExploreMotionCluster(const Vector3d &pos, const Vector3d &vel,
                                const Vector3d &acc, const Vector3d &yaw);
   int updateFrontierStruct(const Eigen::Vector3d &pos);
+  void refreshVoronoiPartition(const Vector3d &cur_pos, const Vector3d &cur_vel);
   // int planTrajToViewInfo(const Vector3d &pos, const Vector3d &vel,
   //                        const Vector3d &acc, const Vector3d &yaw,
   //                        const Vector3d &next_pos, const double &next_yaw);
