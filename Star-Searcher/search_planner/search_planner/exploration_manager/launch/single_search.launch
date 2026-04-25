@@ -95,7 +95,7 @@
     <param name="sdf_map/default_dist" value="0.0" />
 
     <param name="sdf_map/p_hit" value="0.7" />
-    <param name="sdf_map/p_miss" value="0.492" />
+    <param name="sdf_map/p_miss" value="0.45" />
     <param name="sdf_map/p_min" value="0.12" />
     <param name="sdf_map/p_max" value="0.90" />
     <param name="sdf_map/p_occ" value="0.80" />
@@ -163,6 +163,9 @@
     <param name="fsm/thresh_replan3" value="1.2" type="double" />
     <param name="fsm/replan_time" value="0.2" type="double" />
     <param name="fsm/show_tag" value="false" />
+    <param name="fsm/show_blocked_seg_end" value="true" type="bool" />
+    <param name="fsm/show_frontier_points" value="true" type="bool" />
+    <param name="fsm/show_dormant_frontier_points" value="true" type="bool" />
 
     <!-- Exploration manager -->
     <param name="exploration/refine_local" value="true" type="bool" />
@@ -187,7 +190,7 @@
     <param name="exploration/voronoi_global_topo_range" value="8.0" type="double" />
     <param name="exploration/voronoi_connection_cache_resolution" value="0.2" type="double" />
     <param name="exploration/voronoi_state_timeout" value="1.0" type="double" />
-    <param name="exploration/voronoi_debug" value="true" type="bool" />
+    <param name="exploration/voronoi_debug" value="false" type="bool" />
 
     <param name="frontier/cluster_min" value="80" type="int" />
     <param name="frontier/cluster_size_xy" value="4.0" type="double" />
