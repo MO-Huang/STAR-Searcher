@@ -3,39 +3,71 @@
   <arg name="map_size_y" value="40.0"/>
   <arg name="map_size_z" value="5.0"/>
 
-  <arg name="drone_num" value="5" />
+  <arg name="box_min_x" value="-5.0"/>
+  <arg name="box_min_y" value="-5.0"/>
+  <arg name="box_min_z" value="0.2"/>
+  <arg name="box_max_x" value="20.0"/>
+  <arg name="box_max_y" value="20.0"/>
+  <arg name="box_max_z" value="1.6"/>
+
+  <arg name="drone_num" value="3" />
+  <arg name="enable_task_partition" default="true" />
 
   <include file="$(find exploration_manager)/launch/single_search.launch">
     <arg name="drone_id" value="1"/>
-    <arg name="init_x"   value="6.0"/>
-    <arg name="init_y"   value="8.0"/>
+    <arg name="init_x"   value="7.0"/>
+    <arg name="init_y"   value="5.0"/>
     <arg name="init_z"   value="1.0"/> 
+    <arg name="init_yaw" value="1.57"/>
     <arg name="map_size_x" value="$(arg map_size_x)"/>
     <arg name="map_size_y" value="$(arg map_size_y)"/>
     <arg name="map_size_z" value="$(arg map_size_z)"/>
+    <arg name="box_min_x" value="$(arg box_min_x)"/>
+    <arg name="box_min_y" value="$(arg box_min_y)"/>
+    <arg name="box_min_z" value="$(arg box_min_z)"/>
+    <arg name="box_max_x" value="$(arg box_max_x)"/>
+    <arg name="box_max_y" value="$(arg box_max_y)"/>
+    <arg name="box_max_z" value="$(arg box_max_z)"/>
     <arg name="drone_num" value="$(arg drone_num)"/>
+    <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
   </include>
 
   <include file="$(find exploration_manager)/launch/single_search.launch">
       <arg name="drone_id" value="2"/>
-      <arg name="init_x"   value="10.0"/>
-      <arg name="init_y"   value="8.0"/>
+      <arg name="init_x"   value="9.0"/>
+      <arg name="init_y"   value="5.0"/>
       <arg name="init_z"   value="1.0"/> 
+      <arg name="init_yaw" value="1.57"/>
       <arg name="map_size_x" value="$(arg map_size_x)"/>
       <arg name="map_size_y" value="$(arg map_size_y)"/>
       <arg name="map_size_z" value="$(arg map_size_z)"/>
+      <arg name="box_min_x" value="$(arg box_min_x)"/>
+      <arg name="box_min_y" value="$(arg box_min_y)"/>
+      <arg name="box_min_z" value="$(arg box_min_z)"/>
+      <arg name="box_max_x" value="$(arg box_max_x)"/>
+      <arg name="box_max_y" value="$(arg box_max_y)"/>
+      <arg name="box_max_z" value="$(arg box_max_z)"/>
       <arg name="drone_num" value="$(arg drone_num)"/>
+      <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
   </include>
 
-  <include file="$(find exploration_manager)/launch/single_search.launch">
+  <!-- <include file="$(find exploration_manager)/launch/single_search.launch">
       <arg name="drone_id" value="3"/>
       <arg name="init_x"   value="8.0"/>
       <arg name="init_y"   value="5.0"/>
       <arg name="init_z"   value="1.0"/> 
+      <arg name="init_yaw" value="1.57"/>
       <arg name="map_size_x" value="$(arg map_size_x)"/>
       <arg name="map_size_y" value="$(arg map_size_y)"/>
       <arg name="map_size_z" value="$(arg map_size_z)"/>
+      <arg name="box_min_x" value="$(arg box_min_x)"/>
+      <arg name="box_min_y" value="$(arg box_min_y)"/>
+      <arg name="box_min_z" value="$(arg box_min_z)"/>
+      <arg name="box_max_x" value="$(arg box_max_x)"/>
+      <arg name="box_max_y" value="$(arg box_max_y)"/>
+      <arg name="box_max_z" value="$(arg box_max_z)"/>
       <arg name="drone_num" value="$(arg drone_num)"/>
+      <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
   </include>
 
   <include file="$(find exploration_manager)/launch/single_search.launch">
@@ -43,10 +75,18 @@
       <arg name="init_x"   value="8.0"/>
       <arg name="init_y"   value="11.0"/>
       <arg name="init_z"   value="1.0"/> 
+      <arg name="init_yaw" value="1.57"/>
       <arg name="map_size_x" value="$(arg map_size_x)"/>
       <arg name="map_size_y" value="$(arg map_size_y)"/>
       <arg name="map_size_z" value="$(arg map_size_z)"/>
+      <arg name="box_min_x" value="$(arg box_min_x)"/>
+      <arg name="box_min_y" value="$(arg box_min_y)"/>
+      <arg name="box_min_z" value="$(arg box_min_z)"/>
+      <arg name="box_max_x" value="$(arg box_max_x)"/>
+      <arg name="box_max_y" value="$(arg box_max_y)"/>
+      <arg name="box_max_z" value="$(arg box_max_z)"/>
       <arg name="drone_num" value="$(arg drone_num)"/>
-  </include>
+      <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
+  </include> -->
 
 </launch>

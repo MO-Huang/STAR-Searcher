@@ -1,6 +1,7 @@
 <launch>
   <arg name="drone_num" default="1"/>
   <arg name="drone_id" default="1"/>
+  <arg name="enable_task_partition" default="true"/>
   <arg name="map_size_x" default="40.0" />
   <arg name="map_size_y" default="40.0" />
   <arg name="map_size_z" default="5.0" />
@@ -8,13 +9,14 @@
   <arg name="init_x" default="6.0" />
   <arg name="init_y" default="8.0" />
   <arg name="init_z" default="1.0" />
+  <arg name="init_yaw" default="0.0" />
 
-  <arg name="box_min_x" value="-5.0"/>
-  <arg name="box_min_y" value="-5.0"/>
-  <arg name="box_min_z" value="0.2"/>
-  <arg name="box_max_x" value="20.0"/>
-  <arg name="box_max_y" value="20.0"/>
-  <arg name="box_max_z" value="1.6"/>
+  <arg name="box_min_x" default="-5.0"/>
+  <arg name="box_min_y" default="-5.0"/>
+  <arg name="box_min_z" default="0.2"/>
+  <arg name="box_max_x" default="20.0"/>
+  <arg name="box_max_y" default="20.0"/>
+  <arg name="box_max_z" default="1.6"/>
   <arg name="observe_update_dist" value="8.0" />
   <arg name="belief_dist" value="3.5" />
   <arg name="sensor_pose_topic" value="/drone_$(arg drone_id)/pcl_render_node/sensor_pose" />
@@ -163,9 +165,9 @@
     <param name="fsm/thresh_replan3" value="1.2" type="double" />
     <param name="fsm/replan_time" value="0.2" type="double" />
     <param name="fsm/show_tag" value="false" />
-    <param name="fsm/show_blocked_seg_end" value="true" type="bool" />
+    <param name="fsm/show_blocked_seg_end" value="false" type="bool" />
     <param name="fsm/show_frontier_points" value="true" type="bool" />
-    <param name="fsm/show_dormant_frontier_points" value="true" type="bool" />
+    <param name="fsm/show_dormant_frontier_points" value="false" type="bool" />
 
     <!-- Exploration manager -->
     <param name="exploration/refine_local" value="true" type="bool" />
@@ -187,6 +189,7 @@
     <param name="exploration/inertial_cost_offset" value="5.0" type="double" />
     <param name="exploration/drone_id" value="$(arg drone_id)" type="int" />
     <param name="exploration/drone_num" value="$(arg drone_num)" type="int" />
+    <param name="exploration/enable_task_partition" value="$(arg enable_task_partition)" type="bool" />
     <param name="exploration/voronoi_global_topo_range" value="8.0" type="double" />
     <param name="exploration/voronoi_connection_cache_resolution" value="0.2" type="double" />
     <param name="exploration/voronoi_state_timeout" value="1.0" type="double" />
@@ -310,6 +313,7 @@
     <param name="traj_server/init_x" value="$(arg init_x)" type="double" />
     <param name="traj_server/init_y" value="$(arg init_y)" type="double" />
     <param name="traj_server/init_z" value="$(arg init_z)" type="double" />
+    <param name="traj_server/init_yaw" value="$(arg init_yaw)" type="double" />
 
     <param name="perception_utils/top_angle" value="0.56125" type="double" />
     <param name="perception_utils/left_angle" value="0.69222" type="double" />
@@ -323,6 +327,7 @@
     <param name="init_x" value="$(arg init_x)" />
     <param name="init_y" value="$(arg init_y)" />
     <param name="init_z" value="$(arg init_z)" />
+    <param name="init_yaw" value="$(arg init_yaw)" />
     <param name="model_name" value="ardrone$(arg drone_id)" />
     <remap from="~command" to="/drone_$(arg drone_id)/planning/pos_cmd" />
     <remap from="/start_flag" to="/drone_$(arg drone_id)/start_flag" />
@@ -350,6 +355,7 @@
     <arg name="init_x" value="$(arg init_x)"/>
     <arg name="init_y" value="$(arg init_y)"/>
     <arg name="init_z" value="$(arg init_z)"/>
+    <arg name="init_yaw" value="$(arg init_yaw)"/>
   </include>
 
 </launch>

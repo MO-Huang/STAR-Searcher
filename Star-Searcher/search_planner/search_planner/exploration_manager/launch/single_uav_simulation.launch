@@ -9,6 +9,7 @@
   <arg name="init_x" default="2.0"/>
   <arg name="init_y" default="6.0"/>
   <arg name="init_z" default="1.0"/>
+  <arg name="init_yaw" default="0.0"/>
 
 
   <env name="GAZEBO_MODEL_PATH" value="${GAZEBO_MODEL_PATH}:$(find rotors_gazebo)/models"/>
@@ -28,7 +29,7 @@
       <arg name="z" value="$(arg init_z)"/>
       <arg name="roll" value="0.0"/>
       <arg name="pitch" value="0.0"/>
-      <arg name="yaw" value="0.0"/>
+      <arg name="yaw" value="$(arg init_yaw)"/>
     </include>
     
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen"/>
