@@ -5,7 +5,9 @@
 #include <active_perception/perception_utils.h>
 #include <exploration_manager/expl_data.h>
 #include <exploration_manager/fast_exploration_manager.h>
+#include <cerrno>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <lkh_tsp_solver/lkh_interface.h>
@@ -17,6 +19,8 @@
 #include <traj_utils/planning_visualization.h>
 #include <unordered_map>
 #include <sstream>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -78,12 +82,20 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   nh.param("exploration/verbose_active_loop", ep_->verbose_active_loop_, false);
   nh.param("exploration/drone_num", ep_->drone_num_, 1);
   nh.param("exploration/drone_id", ep_->drone_id_, 1);
+  nh.param("exploration/enable_task_partition", ep_->enable_task_partition_, true);
   nh.param("exploration/voronoi_local_range", ep_->local_range_, 8.0);
   nh.param("exploration/voronoi_connection_cache_resolution", ep_->connection_cache_resolution_, 0.2);
   nh.param("exploration/voronoi_state_timeout", ep_->state_timeout_, 1.0);
   nh.param("exploration/voronoi_debug", ep_->voronoi_debug_, false);
   nh.param("segment_length", ep_->voronoi_segment_length_, 1.0);
   nh.param("exploration/voronoi_cluster_r1_scale", ep_->voronoi_cluster_r1_scale_, 2.5);
+
+  const string tsp_base_dir = ep_->tsp_dir_;
+  ep_->tsp_dir_ = tsp_base_dir + "/drone_" + to_string(ep_->drone_id_);
+  if (mkdir(ep_->tsp_dir_.c_str(), 0775) != 0 && errno != EEXIST) {
+    ROS_ERROR("Failed to create TSP directory %s: %s", ep_->tsp_dir_.c_str(),
+              std::strerror(errno));
+  }
 
   ed_->swarm_state_.resize(ep_->drone_num_);
   for (int i = 0; i < ep_->drone_num_; ++i) {
@@ -170,11 +182,17 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
     ROS_WARN("No coverable frontier.");
     return NO_FRONTIER;
   }
-  voronoiPartition(pos, vel);
+  if (ep_->enable_task_partition_) {
+    voronoiPartition(pos, vel);
+  }
   vector<vector<Eigen::Vector3d>> division_clusters;
   frontier_finder_->getFrontierDivision(division_clusters);
   if (division_clusters.empty()) {
-    ROS_WARN("No assigned frontier cluster after voronoi partition.");
+    if (ep_->enable_task_partition_) {
+      ROS_WARN("No assigned frontier cluster after voronoi partition.");
+    } else {
+      ROS_WARN("No frontier cluster after clustering.");
+    }
     return NO_FRONTIER;
   }
   Eigen::Vector3d next_cluster_pos;
