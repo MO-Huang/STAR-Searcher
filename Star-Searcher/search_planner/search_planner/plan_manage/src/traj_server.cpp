@@ -498,6 +498,8 @@ int main(int argc, char** argv) {
   nh.param("traj_server/init_x", init_pos[0], 0.0);
   nh.param("traj_server/init_y", init_pos[1], 0.0);
   nh.param("traj_server/init_z", init_pos[2], 0.0);
+  double init_yaw = 0.0;
+  nh.param("traj_server/init_yaw", init_yaw, 0.0);
 
   ROS_WARN("[Traj server]: init...");
   ros::Duration(1.0).sleep();
@@ -522,7 +524,7 @@ int main(int argc, char** argv) {
   cmd.acceleration.x = 0.0;
   cmd.acceleration.y = 0.0;
   cmd.acceleration.z = 0.0;
-  cmd.yaw = 0.0;
+  cmd.yaw = init_yaw;
   cmd.yaw_dot = 0.0;
 
   percep_utils_.reset(new PerceptionUtils(nh));

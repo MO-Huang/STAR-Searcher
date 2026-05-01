@@ -28,8 +28,7 @@ string _model_name;
 double _init_roll = 0.0, _init_pitch = 0.0, _init_yaw = 0.0;
 bool rcv_cmd = false;
 bool rcv_trigger = false;
-tf::Quaternion quat =
-    tf::createQuaternionFromRPY(_init_roll, _init_pitch, _init_yaw);
+tf::Quaternion quat;
 
 void clickSub(const geometry_msgs::PoseStamped &msg) {
   rcv_trigger = true;
@@ -111,7 +110,9 @@ int main(int argc, char **argv) {
   n.param("init_x", _init_x, 0.0);
   n.param("init_y", _init_y, 0.0);
   n.param("init_z", _init_z, 0.0);
+  n.param("init_yaw", _init_yaw, 0.0);
   n.param("model_name", _model_name, std::string("ardrone"));
+  quat = tf::createQuaternionFromRPY(_init_roll, _init_pitch, _init_yaw);
 
   _cmd_sub = n.subscribe("command", 1, rcvPosCmdCallBack);
   _cllick_sub = n.subscribe("/move_base_simple/goal", 10, clickSub);
