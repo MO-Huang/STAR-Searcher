@@ -111,6 +111,7 @@ struct ExplorationParam {
   int drone_id_;
 
   // Voronoi Partitioning
+  bool enable_task_partition_;
   double local_range_;
   double connection_cache_resolution_;
   double state_timeout_;

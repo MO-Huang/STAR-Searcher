@@ -279,7 +279,7 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
   case WAIT_TRAV: {
     state_flag.data = WAIT_TRAV;
     if (wait_trav_need_refresh_) {
-      updateWaitTravFrontiers(true);
+      updateWaitTravFrontiers(expl_manager_->ep_->enable_task_partition_);
       wait_trav_need_refresh_ = false;
     }
     vector<Eigen::Vector3d> centers;
@@ -597,7 +597,7 @@ void FastExplorationFSM::frontierCallback(const ros::TimerEvent &e) {
     // sensor_msgs::PointCloud2::Ptr cloud_msg(new sensor_msgs::PointCloud2);
     // pcl::toROSMsg(cloud, *cloud_msg);
   } else if (state_ == WAIT_TRAV) {
-    updateWaitTravFrontiers(true);
+    updateWaitTravFrontiers(expl_manager_->ep_->enable_task_partition_);
   }
 }
 
