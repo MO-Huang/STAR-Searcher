@@ -14,6 +14,16 @@ MapROS::~MapROS() {}
 
 void MapROS::setMap(SDFMap *map) { this->map_ = map; }
 
+bool MapROS::getCurrentRobotPos(Eigen::Vector3d &pos) const {
+  if (!current_robot_pos_valid_)
+    return false;
+
+  pos = current_robot_pos_;
+  return true;
+}
+
+void MapROS::requestTopologyRefresh() { topology_dirty_ = true; }
+
 void MapROS::init() {
   node_.param("map_ros/fx", fx_, -1.0);
   node_.param("map_ros/fy", fy_, -1.0);
@@ -33,6 +43,7 @@ void MapROS::init() {
   node_.param("map_ros/show_occ_time", show_occ_time_, false);
   node_.param("map_ros/show_esdf_time", show_esdf_time_, false);
   node_.param("map_ros/show_all_map", show_all_map_, false);
+  node_.param("map_ros/topology_update_period", topology_update_period_, 0.1);
   node_.param("map_ros/frame_id", frame_id_, string("world"));
   node_.param("map_ros/semantic_mode", semantic_mode, true);
   node_.param("map_ros/occupancy_grid_z_layer", occupancy_grid_z_layer_, 17);
@@ -61,6 +72,8 @@ void MapROS::init() {
 
   local_updated_ = false;
   esdf_need_update_ = false;
+  topology_dirty_ = false;
+  current_robot_pos_valid_ = false;
   fuse_time_ = 0.0;
   esdf_time_ = 0.0;
   max_fuse_time_ = 0.0;
@@ -77,6 +90,8 @@ void MapROS::init() {
 
   esdf_timer_ =
       node_.createTimer(ros::Duration(0.05), &MapROS::updateESDFCallback, this);
+  topology_timer_ = node_.createTimer(ros::Duration(topology_update_period_),
+                                      &MapROS::topologyTimerCallback, this);
   vis_timer_ =
       node_.createTimer(ros::Duration(0.05), &MapROS::visCallback, this);
   result_timer_ =
@@ -152,6 +167,23 @@ void MapROS::init() {
   map_start_time_ = ros::Time::now();
 }
 
+void MapROS::topologyTimerCallback(const ros::TimerEvent & /*event*/) {
+  if (!topology_dirty_)
+    return;
+
+  refreshTopologyGraph();
+  topology_dirty_ = false;
+}
+
+void MapROS::refreshTopologyGraph() {
+  nav_msgs::OccupancyGrid grid =
+      map_->convert3DMapLayerToOccupancyGrid(occupancy_grid_z_layer_);
+  nav_msgs_occupancy_grid_pub_.publish(grid);
+  map_->vg_->generateGraph(grid);
+  router_->updateMap(map_->vg_->getLongTermMap());
+  router_->updateGraph(map_->vg_->getSegments());
+}
+
 void MapROS::visCallback(const ros::TimerEvent &e) {
   publishMapLocal();
   if (show_all_map_) {
@@ -217,6 +249,8 @@ void MapROS::depthPoseCallback(const sensor_msgs::ImageConstPtr &img,
   camera_pos_(0) = pose->pose.position.x;
   camera_pos_(1) = pose->pose.position.y;
   camera_pos_(2) = pose->pose.position.z;
+  current_robot_pos_ = camera_pos_;
+  current_robot_pos_valid_ = true;
   if (!map_->isInMap(camera_pos_)) // exceed mapped region
     return;
 
@@ -236,6 +270,7 @@ void MapROS::depthPoseCallback(const sensor_msgs::ImageConstPtr &img,
   if (local_updated_) {
     map_->clearAndInflateLocalMap();
     esdf_need_update_ = true;
+    requestTopologyRefresh();
     local_updated_ = false;
   }
 
@@ -258,6 +293,8 @@ void MapROS::cameralidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
   lidar2world_translation << pose->pose.pose.position.x,
       pose->pose.pose.position.y, pose->pose.pose.position.z;
   Eigen::Vector3d lidar_pos = lidar2world_translation;
+  current_robot_pos_ = lidar_pos;
+  current_robot_pos_valid_ = true;
 
   cv_image_ = cv_bridge::toCvCopy(image_rect, image_rect->encoding);
 
@@ -290,13 +327,9 @@ void MapROS::cameralidarCallback(const sensor_msgs::PointCloud2ConstPtr &cloud,
   if (local_updated_) {
     map_->clearAndInflateLocalMap();
     esdf_need_update_ = true;
+    requestTopologyRefresh();
     local_updated_ = false;
   }
-  nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(occupancy_grid_z_layer_);
-  nav_msgs_occupancy_grid_pub_.publish(grid);
-  map_->vg_->generateGraph(grid);
-  router_->updateMap(map_->vg_->getLongTermMap());
-  router_->updateGraph(map_->vg_->getSegments());
   auto t2 = ros::Time::now();
   float fusion_time = (t2 - t1).toSec();
   // ROS_INFO("Cam_Lidar_Fusion Time: %lf", fusion_time);
@@ -388,6 +421,8 @@ void MapROS::camerasemanticlidarCallback(const sensor_msgs::PointCloud2ConstPtr 
   lidar2world_translation << pose->pose.pose.position.x,
       pose->pose.pose.position.y, pose->pose.pose.position.z;
   Eigen::Vector3d lidar_pos = lidar2world_translation;
+  current_robot_pos_ = lidar_pos;
+  current_robot_pos_valid_ = true;
 
   cv_image_ = cv_bridge::toCvCopy(image_rect, image_rect->encoding);
 
@@ -401,16 +436,8 @@ void MapROS::camerasemanticlidarCallback(const sensor_msgs::PointCloud2ConstPtr 
   if (local_updated_) {
     map_->clearAndInflateLocalMapSemantic();
     esdf_need_update_ = true;
+    requestTopologyRefresh();
     local_updated_ = false;
-    // ros::Time t1 = ros::Time::now();
-    nav_msgs::OccupancyGrid grid = map_->convert3DMapLayerToOccupancyGrid(occupancy_grid_z_layer_);
-    nav_msgs_occupancy_grid_pub_.publish(grid);
-    // std::cout << "\033[33mmap_->vg_->generateGraph(grid);\033[0m" << std::endl;
-    map_->vg_->generateGraph(grid);
-    router_->updateMap(map_->vg_->getLongTermMap());
-    router_->updateGraph(map_->vg_->getSegments());
-    // ros::Time t2 = ros::Time::now();
-    // ROS_INFO("Time of Occupancy Grid Transformation: %f.", (t2 - t1).toSec());
   }
   // ros::Time t4 = ros::Time::now();
   // double lidar_callback_time = (t4 - t1).toSec();
@@ -465,6 +492,8 @@ void MapROS::cloudPoseCallback(const sensor_msgs::PointCloud2ConstPtr &msg,
   camera_pos_(0) = pose->pose.position.x;
   camera_pos_(1) = pose->pose.position.y;
   camera_pos_(2) = pose->pose.position.z;
+  current_robot_pos_ = camera_pos_;
+  current_robot_pos_valid_ = true;
   camera_q_ =
       Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x,
                          pose->pose.orientation.y, pose->pose.orientation.z);
@@ -477,6 +506,7 @@ void MapROS::cloudPoseCallback(const sensor_msgs::PointCloud2ConstPtr &msg,
   if (local_updated_) {
     map_->clearAndInflateLocalMap();
     esdf_need_update_ = true;
+    requestTopologyRefresh();
     local_updated_ = false;
   }
 }

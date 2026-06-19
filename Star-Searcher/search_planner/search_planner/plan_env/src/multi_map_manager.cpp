@@ -22,6 +22,10 @@ void MultiMapManager::init() {
   node_.param("exploration/vis_drone_id", vis_drone_id_, -1);
   node_.param("exploration/drone_num", map_num_, 2);
   node_.param("multi_map_manager/chunk_size", chunk_size_, 200);
+  node_.param("multi_map_manager/self_occ_filter_enable", self_occ_filter_enable_, true);
+  node_.param("multi_map_manager/self_occ_filter_radius", self_occ_filter_radius_, 0.30);
+  node_.param("multi_map_manager/self_occ_filter_z_min", self_occ_filter_z_min_, -0.10);
+  node_.param("multi_map_manager/self_occ_filter_z_max", self_occ_filter_z_max_, 0.10);
 
   stamp_timer_ = node_.createTimer(ros::Duration(0.1), &MultiMapManager::stampTimerCallback, this);
   chunk_timer_ = node_.createTimer(ros::Duration(0.1), &MultiMapManager::chunkTimerCallback, this);
@@ -333,6 +337,7 @@ void MultiMapManager::chunkTimerCallback(const ros::TimerEvent& e) {
   // auto t1 = ros::Time::now();
 
   // Process chunks in buffers
+  bool remote_map_changed = false;
   for (int i = 0; i < chunk_buffer_.size(); ++i) {
     auto& buffer = chunk_buffer_[i];
     if (buffer.empty()) continue;
@@ -381,7 +386,7 @@ void MultiMapManager::chunkTimerCallback(const ros::TimerEvent& e) {
         chunk.voxel_adrs_ = msg.voxel_adrs;
         chunk.voxel_occ_ = msg.voxel_occ_;
         chunk.voxel_obs_dist_ = msg.voxel_obs_dist_;
-        insertChunkToMap(chunk, msg.chunk_drone_id);
+        remote_map_changed |= insertChunkToMap(chunk, msg.chunk_drone_id);
         chunk.empty_ = false;
       }
     }
@@ -397,6 +402,10 @@ void MultiMapManager::chunkTimerCallback(const ros::TimerEvent& e) {
 
     buffer.clear();
     buffer_map_[i].clear();
+  }
+
+  if (remote_map_changed) {
+    map_->getMapROS()->requestTopologyRefresh();
   }
   // ROS_ERROR("chunk time: %lf", (ros::Time::now() - t1).toSec());
 }
@@ -471,7 +480,18 @@ void MultiMapManager::adrToIndex(const uint32_t& adr, Eigen::Vector3i& idx) {
   idx[2] = tmp_adr % b;
 }
 
-void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_id) {
+bool MultiMapManager::shouldFilterSelfOccupiedVoxel(
+    const Eigen::Vector3d& voxel_pos, const Eigen::Vector3d& robot_pos) const {
+  if (!self_occ_filter_enable_) return false;
+
+  const double dx = voxel_pos[0] - robot_pos[0];
+  const double dy = voxel_pos[1] - robot_pos[1];
+  const double dz = voxel_pos[2] - robot_pos[2];
+  return dx * dx + dy * dy <= self_occ_filter_radius_ * self_occ_filter_radius_ &&
+         dz >= self_occ_filter_z_min_ && dz <= self_occ_filter_z_max_;
+}
+
+bool MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_id) {
 
   // // Transform from other drone's local frame to this drone's
   // Eigen::Vector4d transform;
@@ -484,6 +504,9 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
 
   bool has_update = false;
   Eigen::Vector3d update_min, update_max;
+  Eigen::Vector3d robot_pos;
+  const bool has_robot_pos =
+      self_occ_filter_enable_ && map_->getMapROS()->getCurrentRobotPos(robot_pos);
 
   for (int i = 0; i < chunk.voxel_adrs_.size(); ++i) {
     // Insert occ info
@@ -498,6 +521,10 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
 
     // pos = rot * pos + trans;
     if (!map_->isInMap(pos)) continue;
+    if (chunk.voxel_occ_[i] == 1 && has_robot_pos &&
+        shouldFilterSelfOccupiedVoxel(pos, robot_pos)) {
+      continue;
+    }
 
     if (!has_update) {
       update_min = pos;
@@ -562,7 +589,7 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
     }
   }
 
-  if (!has_update) return;
+  if (!has_update) return false;
 
   if (map_->md_->reset_updated_box_) {
     map_->md_->update_min_ = update_min;
@@ -574,6 +601,7 @@ void MultiMapManager::insertChunkToMap(const MapChunk& chunk, const int& drone_i
       map_->md_->update_max_[k] = max(map_->md_->update_max_[k], update_max[k]);
     }
   }
+  return true;
 }
 
 void MultiMapManager::getChunkBoxes(

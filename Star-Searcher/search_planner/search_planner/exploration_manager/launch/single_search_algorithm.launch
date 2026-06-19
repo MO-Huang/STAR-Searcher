@@ -1,0 +1,44 @@
+<launch>
+  <arg name="drone_num" default="1"/>
+  <arg name="drone_id" default="1"/>
+  <arg name="enable_task_partition" default="true"/>
+  <arg name="enable_multi_map" default="true"/>
+  <arg name="enable_dynamic_adaptation" default="true"/>
+  <arg name="map_size_x" default="40.0" />
+  <arg name="map_size_y" default="40.0" />
+  <arg name="map_size_z" default="5.0" />
+
+  <arg name="init_x" default="6.0" />
+  <arg name="init_y" default="8.0" />
+  <arg name="init_z" default="1.0" />
+  <arg name="init_yaw" default="0.0" />
+
+  <arg name="box_min_x" default="-5.0"/>
+  <arg name="box_min_y" default="-5.0"/>
+  <arg name="box_min_z" default="0.2"/>
+  <arg name="box_max_x" default="20.0"/>
+  <arg name="box_max_y" default="20.0"/>
+  <arg name="box_max_z" default="1.6"/>
+
+  <include file="$(find exploration_manager)/launch/single_search.launch">
+    <arg name="drone_num" value="$(arg drone_num)"/>
+    <arg name="drone_id" value="$(arg drone_id)"/>
+    <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
+    <arg name="enable_multi_map" value="$(arg enable_multi_map)"/>
+    <arg name="enable_dynamic_adaptation" value="$(arg enable_dynamic_adaptation)"/>
+    <arg name="spawn_uav" value="false"/>
+    <arg name="map_size_x" value="$(arg map_size_x)"/>
+    <arg name="map_size_y" value="$(arg map_size_y)"/>
+    <arg name="map_size_z" value="$(arg map_size_z)"/>
+    <arg name="init_x" value="$(arg init_x)"/>
+    <arg name="init_y" value="$(arg init_y)"/>
+    <arg name="init_z" value="$(arg init_z)"/>
+    <arg name="init_yaw" value="$(arg init_yaw)"/>
+    <arg name="box_min_x" value="$(arg box_min_x)"/>
+    <arg name="box_min_y" value="$(arg box_min_y)"/>
+    <arg name="box_min_z" value="$(arg box_min_z)"/>
+    <arg name="box_max_x" value="$(arg box_max_x)"/>
+    <arg name="box_max_y" value="$(arg box_max_y)"/>
+    <arg name="box_max_z" value="$(arg box_max_z)"/>
+  </include>
+</launch>

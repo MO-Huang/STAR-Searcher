@@ -2,6 +2,9 @@
   <arg name="drone_num" default="1"/>
   <arg name="drone_id" default="1"/>
   <arg name="enable_task_partition" default="true"/>
+  <arg name="enable_multi_map" default="true"/>
+  <arg name="enable_dynamic_adaptation" default="true"/>
+  <arg name="spawn_uav" default="true"/>
   <arg name="map_size_x" default="40.0" />
   <arg name="map_size_y" default="40.0" />
   <arg name="map_size_z" default="5.0" />
@@ -190,6 +193,15 @@
     <param name="exploration/drone_id" value="$(arg drone_id)" type="int" />
     <param name="exploration/drone_num" value="$(arg drone_num)" type="int" />
     <param name="exploration/enable_task_partition" value="$(arg enable_task_partition)" type="bool" />
+    <param name="exploration/enable_dynamic_adaptation" value="$(arg enable_dynamic_adaptation)" type="bool" />
+    <param name="exploration/blocked_seg_max_iter" value="100" type="int" />
+    <param name="exploration/wait_point_reached_thresh" value="0.2" type="double" />
+    <param name="multi_map_manager/enable" value="$(arg enable_multi_map)" type="bool" />
+    <param name="multi_map_manager/chunk_size" value="200" type="int" />
+    <param name="multi_map_manager/self_occ_filter_enable" value="true" type="bool" />
+    <param name="multi_map_manager/self_occ_filter_radius" value="0.30" type="double" />
+    <param name="multi_map_manager/self_occ_filter_z_min" value="-0.10" type="double" />
+    <param name="multi_map_manager/self_occ_filter_z_max" value="0.10" type="double" />
     <param name="exploration/voronoi_global_topo_range" value="8.0" type="double" />
     <param name="exploration/voronoi_connection_cache_resolution" value="0.2" type="double" />
     <param name="exploration/voronoi_state_timeout" value="1.0" type="double" />
@@ -349,7 +361,7 @@
     <param name="waypoint_type" value="point" />
   </node>
 
-  <include file="$(find exploration_manager)/launch/single_uav_simulation.launch">
+  <include file="$(find exploration_manager)/launch/single_uav_simulation.launch" if="$(arg spawn_uav)">
     <arg name="drone_id" value="$(arg drone_id)"/>
     <arg name="odometry_topic" value="/ardrone$(arg drone_id)/ground_truth/odometry" />
     <arg name="init_x" value="$(arg init_x)"/>

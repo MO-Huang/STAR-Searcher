@@ -14,7 +14,10 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   md_.reset(new MapData);
   mr_.reset(new MapROS);
   vg_ = std::make_unique<tuw_graph::VoronoiGeneratorNode>(nh);
-  mm_.reset(new MultiMapManager);
+  nh.param("multi_map_manager/enable", multi_map_enabled_, true);
+  if (multi_map_enabled_) {
+    mm_.reset(new MultiMapManager);
+  }
 
   // Params of map properties
   double x_size, y_size, z_size;
@@ -110,9 +113,11 @@ void SDFMap::initMap(ros::NodeHandle &nh) {
   mr_->node_ = nh;
   mr_->init();
 
-  mm_->setMap(this);
-  mm_->node_ = nh;
-  mm_->init();
+  if (multi_map_enabled_ && mm_) {
+    mm_->setMap(this);
+    mm_->node_ = nh;
+    mm_->init();
+  }
 
   caster_.reset(new RayCaster);
   caster_->setParams(mp_->resolution_, mp_->map_origin_);
@@ -557,7 +562,9 @@ void SDFMap::inputCamLidarPointCloud(const Eigen::MatrixXd &points,
       new_voxel_ids_.erase(std::unique(new_voxel_ids_.begin(), new_voxel_ids_.end()), new_voxel_ids_.end());
   }
 
-  mm_->updateMapChunk(new_voxel_ids_);
+  if (multi_map_enabled_ && mm_) {
+    mm_->updateMapChunk(new_voxel_ids_);
+  }
 }
 
 void SDFMap::inputCamLidarSemanticPointCloud(const Eigen::MatrixXd &points,

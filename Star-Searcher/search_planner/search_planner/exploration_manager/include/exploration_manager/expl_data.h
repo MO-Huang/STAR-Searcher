@@ -112,6 +112,9 @@ struct ExplorationParam {
 
   // Voronoi Partitioning
   bool enable_task_partition_;
+  bool enable_dynamic_adaptation_;
+  int blocked_seg_max_iter_;
+  double wait_point_reached_thresh_;
   double local_range_;
   double connection_cache_resolution_;
   double state_timeout_;

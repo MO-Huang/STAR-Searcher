@@ -32,6 +32,8 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   expl_manager_->initialize(nh);
   this->visualization_ = expl_manager_->visualization_;
   router_ = expl_manager_->router_;
+  const bool enable_task_partition =
+      expl_manager_->ep_->enable_task_partition_;
 
   planner_manager_ = expl_manager_->planner_manager_;
   percep_utils_.reset(new PerceptionUtils(nh));
@@ -69,12 +71,15 @@ void FastExplorationFSM::init(ros::NodeHandle &nh) {
   replan_pub_ = nh.advertise<std_msgs::Empty>("/planning/replan", 10);
   new_pub_ = nh.advertise<std_msgs::Empty>("/planning/new", 10);
   bspline_pub_ = nh.advertise<bspline::Bspline>("/planning/bspline", 10);
-  drone_state_timer_ =
-      nh.createTimer(ros::Duration(0.04), &FastExplorationFSM::droneStateTimerCallback, this);
-  drone_state_pub_ =
-      nh.advertise<exploration_manager::DroneState>("/swarm_expl/drone_state_send", 10);
-  drone_state_sub_ = nh.subscribe(
-      "/swarm_expl/drone_state_recv", 10, &FastExplorationFSM::droneStateMsgCallback, this);
+  if (enable_task_partition) {
+    drone_state_timer_ = nh.createTimer(
+        ros::Duration(0.04), &FastExplorationFSM::droneStateTimerCallback, this);
+    drone_state_pub_ = nh.advertise<exploration_manager::DroneState>(
+        "/swarm_expl/drone_state_send", 10);
+    drone_state_sub_ = nh.subscribe(
+        "/swarm_expl/drone_state_recv", 10,
+        &FastExplorationFSM::droneStateMsgCallback, this);
+  }
   start_flag_pub = nh.advertise<std_msgs::Int32>("/start_flag", 10);
   spiral_pub_ =
       nh.advertise<quadrotor_msgs::PositionCommand>("/planning/pos_cmd", 50);
@@ -95,6 +100,20 @@ int FastExplorationFSM::getId() {
 
 void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
   std_msgs::Int32 state_flag;
+  auto resultToString = [](int res) {
+    switch (res) {
+    case SUCCEED:
+      return "SUCCEED";
+    case FAIL:
+      return "FAIL";
+    case NO_FRONTIER:
+      return "NO_FRONTIER";
+    case NO_GRID:
+      return "NO_GRID";
+    default:
+      return "UNKNOWN";
+    }
+  };
   ROS_INFO_STREAM_THROTTLE(1.0,
                            "[FSM][drone " << getId()
                                            << "]: state: "
@@ -170,7 +189,16 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
 
     // Inform traj_server the replanning
     replan_pub_.publish(std_msgs::Empty());
+    // ROS_WARN_STREAM("[FSMDiag][drone " << getId()
+    //                 << "] PLAN_TRAJ before callExplorationPlanner static="
+    //                 << fd_->static_state_ << " start_pt="
+    //                 << fd_->start_pt_.transpose() << " start_vel="
+    //                 << fd_->start_vel_.transpose() << " start_yaw="
+    //                 << fd_->start_yaw_.transpose());
     int res = callExplorationPlanner();
+    // ROS_WARN_STREAM("[FSMDiag][drone " << getId()
+    //                 << "] PLAN_TRAJ after callExplorationPlanner res="
+    //                 << resultToString(res));
     if (res == SUCCEED) {
       transitState(PUB_TRAJ, "FSM");
       // visualize();
@@ -215,12 +243,14 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
     double yaw = fd_->odom_yaw_;
     bool reach_goal = (pos - expl_manager_->ed_->next_goal_).norm() < 0.5 && abs(yaw - expl_manager_->ed_->next_yaw_)< 1.0;
     // std::cout << "\033[32minfo->go_wait_trav_ = " << info->go_wait_trav_ << ", time_to_end = \033[0m" << time_to_end << std::endl;
-    if (info->go_wait_trav_ && reach_goal) {
+    if (expl_manager_->ep_->enable_dynamic_adaptation_ &&
+        info->go_wait_trav_ && reach_goal) {
       transitState(WAIT_TRAV, "FSM");
       fd_->static_state_ = true;
       break;
     }
-    if (info->go_wait_trav_ && time_to_end < fp_->replan_thresh1_) {
+    if (expl_manager_->ep_->enable_dynamic_adaptation_ &&
+        info->go_wait_trav_ && time_to_end < fp_->replan_thresh1_) {
       ROS_WARN("Reach waiting point for traversability.");
       transitState(WAIT_TRAV, "FSM");
       fd_->static_state_ = true;
@@ -278,6 +308,13 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
 
   case WAIT_TRAV: {
     state_flag.data = WAIT_TRAV;
+    // ROS_WARN_STREAM("[FSMDiag][drone " << getId()
+    //                 << "] enter WAIT_TRAV blocked_end="
+    //                 << expl_manager_->ed_->blocked_seg_end_.transpose());
+    if (!expl_manager_->ep_->enable_dynamic_adaptation_) {
+      transitState(PLAN_TRAJ, "FSM");
+      break;
+    }
     if (wait_trav_need_refresh_) {
       updateWaitTravFrontiers(expl_manager_->ep_->enable_task_partition_);
       wait_trav_need_refresh_ = false;
@@ -287,6 +324,8 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
     Eigen::Vector3d pos = fd_->odom_pos_;
     bool traversable = false;
     planner_manager_->path_finder_->reset();
+    // ROS_WARN_STREAM("[FSMDiag][drone " << getId()
+    //                 << "] WAIT_TRAV centers=" << centers.size());
     for (auto center : centers) {
       if(planner_manager_->path_finder_->search(pos, center) == Astar::REACH_END) {
         traversable = true;
@@ -299,6 +338,8 @@ void FastExplorationFSM::FSMCallback(const ros::TimerEvent &e) {
     if(traversable)
       break;
     planner_manager_->path_finder_->reset();
+    // ROS_WARN_STREAM("[FSMDiag][drone " << getId()
+    //                 << "] WAIT_TRAV before blocked_seg_end search");
     if(planner_manager_->path_finder_->search(pos, expl_manager_->ed_->blocked_seg_end_) == Astar::REACH_END) {
       // printf("\033[32mThe blocked seg end [%f, %f, %f] tured traversable.\033[0m\n", expl_manager_->ed_->blocked_seg_end_[0], expl_manager_->ed_->blocked_seg_end_[1], expl_manager_->ed_->blocked_seg_end_[2]);
       transitState(PLAN_TRAJ, "FSM");
@@ -596,7 +637,8 @@ void FastExplorationFSM::frontierCallback(const ros::TimerEvent &e) {
     // cloud.header.frame_id = "world";
     // sensor_msgs::PointCloud2::Ptr cloud_msg(new sensor_msgs::PointCloud2);
     // pcl::toROSMsg(cloud, *cloud_msg);
-  } else if (state_ == WAIT_TRAV) {
+  } else if (state_ == WAIT_TRAV &&
+             expl_manager_->ep_->enable_dynamic_adaptation_) {
     updateWaitTravFrontiers(expl_manager_->ep_->enable_task_partition_);
   }
 }

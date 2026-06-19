@@ -93,6 +93,7 @@ public:
 
   // Parameters shared among nodes
   static double vm_, am_, yd_, ydd_, w_dir_;
+  static bool enable_dynamic_adaptation_;
   static shared_ptr<Astar> astar_;
   static shared_ptr<RayCaster> caster_;
   static shared_ptr<SDFMap> map_;

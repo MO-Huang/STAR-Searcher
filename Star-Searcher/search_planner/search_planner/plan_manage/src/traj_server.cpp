@@ -49,6 +49,21 @@ int inferDroneIdFromNodeName() {
   return std::stoi(node_name.substr(begin, end - begin));
 }
 
+Eigen::Vector4d getTravelTrajColor(const int drone_id) {
+  static const std::vector<Eigen::Vector4d> kRainbowColors = {
+      Eigen::Vector4d(1.0, 0.0, 0.0, 1.0),   // red
+      // Eigen::Vector4d(1.0, 0.5, 0.0, 1.0),   // orange
+      Eigen::Vector4d(1.0, 0.9, 0.0, 1.0),   // yellow
+      Eigen::Vector4d(0.0, 0.75, 0.0, 1.0),  // green
+      Eigen::Vector4d(0.0, 0.8, 0.8, 1.0),   // cyan
+      Eigen::Vector4d(0.0, 0.2, 1.0, 1.0),   // blue
+      Eigen::Vector4d(0.55, 0.0, 0.8, 1.0)   // violet
+  };
+
+  if (drone_id <= 0) return kRainbowColors.front();
+  return kRainbowColors[(drone_id - 1) % kRainbowColors.size()];
+}
+
 // Info of replan
 bool receive_traj_ = false;
 double replan_time_;
@@ -221,7 +236,8 @@ void visCallback(const ros::TimerEvent& e) {
   // Draw the executed traj (desired state)
   // displayTrajWithColor(traj_cmd_, 0.05, Eigen::Vector4d(1, 0, 0, 1), pub_traj_id_);
   // displayTrajWithColor(traj_cmd_, 0.05, Eigen::Vector4d(0, 1, 0, 1), pub_traj_id_);
-  displayTrajWithColor(traj_cmd_, 0.05, Eigen::Vector4d(0, 0, 1, 1), pub_traj_id_);
+  displayTrajWithColor(traj_cmd_, 0.05, getTravelTrajColor(drone_id_),
+                       pub_traj_id_);
 
   // displayTrajWithColor(traj_real_, 0.03, Eigen::Vector4d(0.925, 0.054, 0.964,
   // 1),
@@ -367,7 +383,7 @@ void cmdCallback(const ros::TimerEvent& e) {
   }
 
   double flight_t = (end_time - start_time).toSec();
-  ROS_WARN_THROTTLE(10,
+  ROS_WARN_THROTTLE(4,
                     "[drone %d] flight time: %lf, actual flight time: %lf, path length: %lf, mean vel: %lf, energy is: % lf ",
                     drone_id_, flight_t, actual_flight_time, len,
                     len / flight_t, energy);

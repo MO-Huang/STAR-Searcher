@@ -1,0 +1,37 @@
+<launch>
+  <include file="$(find exploration_manager)/launch/single_uav_simulation.launch">
+    <arg name="drone_id" value="1"/>
+    <arg name="odometry_topic" value="/ardrone1/ground_truth/odometry" />
+    <arg name="init_x" value="3.0"/>
+    <arg name="init_y" value="6.0"/>
+    <arg name="init_z" value="1.0"/>
+    <arg name="init_yaw" value="0"/>
+  </include>
+
+  <include file="$(find exploration_manager)/launch/single_uav_simulation.launch">
+    <arg name="drone_id" value="2"/>
+    <arg name="odometry_topic" value="/ardrone2/ground_truth/odometry" />
+    <arg name="init_x" value="3.0"/>
+    <arg name="init_y" value="7.0"/>
+    <arg name="init_z" value="1.0"/>
+    <arg name="init_yaw" value="0"/>
+  </include>
+
+  <!-- <include file="$(find exploration_manager)/launch/single_uav_simulation.launch">
+    <arg name="drone_id" value="3"/>
+    <arg name="odometry_topic" value="/ardrone3/ground_truth/odometry" />
+    <arg name="init_x" value="2.0"/>
+    <arg name="init_y" value="6.5"/>
+    <arg name="init_z" value="1.0"/>
+    <arg name="init_yaw" value="0"/>
+  </include>
+
+  <include file="$(find exploration_manager)/launch/single_uav_simulation.launch">
+    <arg name="drone_id" value="4"/>
+    <arg name="odometry_topic" value="/ardrone4/ground_truth/odometry" />
+    <arg name="init_x" value="2.0"/>
+    <arg name="init_y" value="7.5"/>
+    <arg name="init_z" value="1.0"/>
+    <arg name="init_yaw" value="0"/>
+  </include> -->
+</launch>

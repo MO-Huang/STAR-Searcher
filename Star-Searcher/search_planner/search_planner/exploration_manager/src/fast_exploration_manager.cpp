@@ -83,6 +83,10 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   nh.param("exploration/drone_num", ep_->drone_num_, 1);
   nh.param("exploration/drone_id", ep_->drone_id_, 1);
   nh.param("exploration/enable_task_partition", ep_->enable_task_partition_, true);
+  nh.param("exploration/enable_dynamic_adaptation", ep_->enable_dynamic_adaptation_, true);
+  nh.param("exploration/blocked_seg_max_iter", ep_->blocked_seg_max_iter_, 100);
+  nh.param("exploration/wait_point_reached_thresh",
+           ep_->wait_point_reached_thresh_, 0.2);
   nh.param("exploration/voronoi_local_range", ep_->local_range_, 8.0);
   nh.param("exploration/voronoi_connection_cache_resolution", ep_->connection_cache_resolution_, 0.2);
   nh.param("exploration/voronoi_state_timeout", ep_->state_timeout_, 1.0);
@@ -106,6 +110,7 @@ void FastExplorationManager::initialize(ros::NodeHandle &nh) {
   ViewNode::astar_->init(nh, edt_environment_);
   ViewNode::map_ = sdf_map_;
   ViewNode::router_ = router_;
+  ViewNode::enable_dynamic_adaptation_ = ep_->enable_dynamic_adaptation_;
 
   double resolution_ = sdf_map_->getResolution();
   Eigen::Vector3d origin, size;
@@ -153,9 +158,14 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
                                                      const Vector3d &vel,
                                                      const Vector3d &acc,
                                                      const Vector3d &yaw) {
+  const auto diag_begin = ros::WallTime::now();
   ros::Time t1 = ros::Time::now();
   auto t2 = t1;
   ed_->views_.clear();
+  // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+  //                 << "] enter planExploreMotionCluster pos="
+  //                 << pos.transpose() << " vel=" << vel.transpose()
+  //                 << " yaw=" << yaw.transpose());
   // std::cout << "start pos: " << pos.transpose() << ", vel: " << vel.transpose()
   //           << ", acc: " << acc.transpose() << std::endl;
 
@@ -175,6 +185,10 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
   // frontier_finder_->getDormantFrontiers(ed_->dead_frontiers_);
   frontier_finder_->getTopViewpointsInfo(pos, ed_->points_, ed_->yaws_,
                                          ed_->averages_);
+  // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+  //                 << "] frontier stage done frontiers=" << ed_->frontiers_.size()
+  //                 << " points=" << ed_->points_.size()
+  //                 << " neighbor=" << neighbor);
   double frt_time = (ros::Time::now() - t1).toSec();
   // ROS_WARN("[planExploreMotionCluster] frt_time:%lf", frt_time);
 
@@ -183,10 +197,16 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
     return NO_FRONTIER;
   }
   if (ep_->enable_task_partition_) {
+    // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+    //                 << "] before voronoiPartition");
     voronoiPartition(pos, vel);
+    // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+    //                 << "] after voronoiPartition");
   }
   vector<vector<Eigen::Vector3d>> division_clusters;
   frontier_finder_->getFrontierDivision(division_clusters);
+  // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+  //                 << "] division_clusters=" << division_clusters.size());
   if (division_clusters.empty()) {
     if (ep_->enable_task_partition_) {
       ROS_WARN("No assigned frontier cluster after voronoi partition.");
@@ -196,7 +216,12 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
     return NO_FRONTIER;
   }
   Eigen::Vector3d next_cluster_pos;
+  int cluster_round = 0;
   while(division_clusters.size() > 0){
+    ++cluster_round;
+    // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+    //                 << "] cluster_round=" << cluster_round
+    //                 << " active_clusters=" << division_clusters.size());
     if (division_clusters.size() > 1) {
       findNextCluster(pos, vel, yaw, ed_->local_tour_, next_cluster_pos,
                       neighbor);
@@ -240,6 +265,10 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
     } else
       ROS_ERROR("Empty destination.");
 
+    // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+    //                 << "] selected next_pos=" << next_pos.transpose()
+    //                 << " next_yaw_size=" << next_yaw.size()
+    //                 << " local_tour_size=" << ed_->local_tour_.size());
     std::cout << "Next view: " << next_pos.transpose() << std::endl;
 
     // Plan trajectory (position and yaw) to the next viewpoint
@@ -252,18 +281,35 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
 
     // Generate trajectory of x,y,z
     bool go_wait_trav = false;
+    bool wait_point_already_reached = false;
     planner_manager_->path_finder_->reset();
     planner_manager_->path_finder_->setMaxSearchTime(0.001);
-    if (planner_manager_->path_finder_->search(pos, next_pos) !=
-        Astar::REACH_END) {
+    // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+    //                 << "] before astar#1 next viewpoint");
+    int astar_res = planner_manager_->path_finder_->search(pos, next_pos);
+    // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+    //                 << "] after astar#1 res=" << astar_res);
+    if (astar_res != Astar::REACH_END) {
       planner_manager_->path_finder_->setMaxSearchTime(0.008);
-      if (planner_manager_->path_finder_->search(pos, next_pos) !=
-          Astar::REACH_END) {
+      // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+      //                 << "] before astar#2 next viewpoint");
+      astar_res = planner_manager_->path_finder_->search(pos, next_pos);
+      // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+      //                 << "] after astar#2 res=" << astar_res);
+      if (astar_res != Astar::REACH_END) {
+        if (!ep_->enable_dynamic_adaptation_) {
+          // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+          //                 << "] adaptation disabled, return FAIL after astar#2");
+          return FAIL;
+        }
         // ROS_ERROR("No path to next viewpoint");
         // return FAIL;
         // ROS_ERROR("No path to next viewpoint (%f, %f, %f).", next_pos[0], next_pos[1], next_pos[2]);
         frontier_finder_->removeUnreachableCluster(ed_->global_tour_idx_[0]);
         frontier_finder_->getFrontierDivision(division_clusters);
+        // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+        //                 << "] enter adaptation branch after remove, remaining_clusters="
+        //                 << division_clusters.size());
         if(division_clusters.size() > 0)
             continue;
         else {
@@ -272,9 +318,23 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
           //        ep_->drone_id_);
           vector<Eigen::Vector3d> unreachable_centers;
           frontier_finder_->getUnreachableClusterCenters(unreachable_centers);
-          if (router_->search(pos, unreachable_centers[0]) == multi_robot_router::Router_Node::REACH_END){
+          // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+          //                 << "] unreachable_centers=" << unreachable_centers.size());
+          // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+          //                 << "] before router search to unreachable center="
+          //                 << unreachable_centers[0].transpose());
+          const auto router_t1 = ros::WallTime::now();
+          int router_res = router_->search(pos, unreachable_centers[0]);
+          const double router_dt =
+              (ros::WallTime::now() - router_t1).toSec() * 1000.0;
+          // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+          //                 << "] after router search res=" << router_res
+          //                 << " dt_ms=" << router_dt);
+          if (router_res == multi_robot_router::Router_Node::REACH_END){
             vector<Eigen::Vector3d> path = router_->getPath(); //得到的路径z轴值是从起点到目标点均匀变化的，有可能会不符合避障要求
             vector<Eigen::Vector3d> blocked_seg = router_->getBlockedPathSeg();
+            // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+            //                 << "] blocked_seg_size=" << blocked_seg.size());
             if(blocked_seg.size() > 0) {
               // printf("\033[33mThe size of found blocked seg is %lu.\033[0m\n", blocked_seg.size());
               printf("\033[33m[drone %d] found blocked seg: [%f, %f, %f] to [%f, %f, %f].\033[0m\n",
@@ -287,7 +347,19 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
               // next_pos = (n + 1) * blocked_seg[0] - n * blocked_seg[1];
               next_pos = 2 * blocked_seg[0] -  blocked_seg[1];
               next_pos[2] = pos[2];
-              while(!found){
+              // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+              //                 << "] initial wait next_pos=" << next_pos.transpose());
+              int wait_point_iter = 0;
+              while(!found && ros::ok() &&
+                    wait_point_iter < ep_->blocked_seg_max_iter_){
+                ++wait_point_iter;
+                if (wait_point_iter == 1 || wait_point_iter % 10 == 0) {
+                  const double blocked_dx = blocked_seg[0][0] - blocked_seg[1][0];
+                  // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+                  //                 << "] wait_point_iter=" << wait_point_iter
+                  //                 << " next_pos=" << next_pos.transpose()
+                  //                 << " blocked_dx=" << blocked_dx);
+                }
                 bool safe = true;
                 Vector3i idx;
                 Vector3i unsafe_idx;
@@ -322,6 +394,35 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
                   }
                 }
               }
+              if (!found) {
+                ROS_ERROR("[drone %d] Failed to find waiting point after %d iterations.",
+                          ep_->drone_id_, ep_->blocked_seg_max_iter_);
+                return FAIL;
+              }
+              // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+              //                 << "] found waiting point next_pos="
+              //                 << next_pos.transpose());
+              const double wait_dist = (next_pos - pos).norm();
+              if (wait_dist < ep_->wait_point_reached_thresh_) {
+                Eigen::Vector3d hold_dir(cos(min_yaw), sin(min_yaw), 0.0);
+                if (hold_dir.norm() < 1e-6) {
+                  hold_dir = Eigen::Vector3d::UnitX();
+                } else {
+                  hold_dir.normalize();
+                }
+                const double hold_step = 0.05;
+                ed_->path_next_goal_.clear();
+                ed_->path_next_goal_.push_back(pos);
+                ed_->path_next_goal_.push_back(pos + hold_step * hold_dir);
+                ed_->path_next_goal_.push_back(pos);
+                next_pos = pos;
+                wait_point_already_reached = true;
+                go_wait_trav = true;
+                // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+                //                 << "] waiting point already reached dist="
+                //                 << wait_dist
+                //                 << ", use hold trajectory and wait for traversability");
+              }
               // printf("\033[33m[drone %d] current pose:[%f, %f, %f], waiting point: [%f, %f, %f]\033[0m\n",
               //        ep_->drone_id_, pos[0], pos[1], pos[2], next_pos[0],
               //        next_pos[1], next_pos[2]);
@@ -331,25 +432,41 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
               next_yaw = {atan2(dir[1], dir[0])};
               frontier_finder_->wrapYaw(next_yaw[0]);
               min_yaw = max_yaw = next_yaw[0];
-              planner_manager_->path_finder_->reset();
-              planner_manager_->path_finder_->setMaxSearchTime(0.001);
-              if (planner_manager_->path_finder_->search(pos, next_pos) != Astar::REACH_END) {
-                planner_manager_->path_finder_->setMaxSearchTime(0.008);
-                if (planner_manager_->path_finder_->search(pos, next_pos) != Astar::REACH_END) {
-                  printf("\033[31m No path to the blocked path seg.\033[0m\n");
-                  return FAIL;
+              if (!wait_point_already_reached) {
+                planner_manager_->path_finder_->reset();
+                planner_manager_->path_finder_->setMaxSearchTime(0.001);
+                // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+                //                 << "] before astar to waiting point");
+                astar_res = planner_manager_->path_finder_->search(pos, next_pos);
+                // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+                //                 << "] after astar to waiting point res=" << astar_res);
+                if (astar_res != Astar::REACH_END) {
+                  planner_manager_->path_finder_->setMaxSearchTime(0.008);
+                  // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+                  //                 << "] before astar#2 to waiting point");
+                  astar_res = planner_manager_->path_finder_->search(pos, next_pos);
+                  // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+                  //                 << "] after astar#2 to waiting point res=" << astar_res);
+                  if (astar_res != Astar::REACH_END) {
+                    printf("\033[31m No path to the blocked path seg.\033[0m\n");
+                    return FAIL;
+                  }
                 }
+                printf("\033[32m[drone %d] Found path to the blocked path seg.\033[0m\n",
+                       ep_->drone_id_);
+                go_wait_trav = true;
               }
-              printf("\033[32m[drone %d] Found path to the blocked path seg.\033[0m\n",
-                     ep_->drone_id_);
-              go_wait_trav = true;
             }
             else {
+              // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+              //                 << "] blocked_seg empty, return FAIL");
               printf("\033[31m No active frontier clusters and blocked seg not found.\033[0m\n");
               return FAIL;
             }
           }
           else {
+            // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+            //                 << "] router search to unreachable center failed, return FAIL");
             printf("\033[31m router_->search(pos, unreachable_centers[0]) failed.\033[0m\n");
             return FAIL;
           }
@@ -357,8 +474,10 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
       }
     }
 
-    ed_->path_next_goal_ = planner_manager_->path_finder_->getPath();
-    shortenPath(ed_->path_next_goal_);
+    if (!wait_point_already_reached) {
+      ed_->path_next_goal_ = planner_manager_->path_finder_->getPath();
+      shortenPath(ed_->path_next_goal_);
+    }
 
     // Compute time lower bound of yaw and use in trajectory generation
     double diff = fabs(min_yaw - yaw[0]);
@@ -428,6 +547,10 @@ int FastExplorationManager::planExploreMotionCluster(const Vector3d &pos,
       planner_manager_->local_data_.go_wait_trav_ = true;
     else
       planner_manager_->local_data_.go_wait_trav_ = false;
+    // ROS_WARN_STREAM("[MgrDiag][drone " << ep_->drone_id_
+    //                 << "] return SUCCEED total_wall_ms="
+    //                 << (ros::WallTime::now() - diag_begin).toSec() * 1000.0
+    //                 << " go_wait_trav=" << go_wait_trav);
     return SUCCEED;
   }
 }
@@ -1199,15 +1322,26 @@ void FastExplorationManager::voronoiPartition(const Vector3d &cur_pos,
       cost = it->second;
       return std::isfinite(cost);
     }
-    if (router_->search(a, b) == multi_robot_router::Router_Node::REACH_END) {
-      auto path = router_->getPath();
-      if (path.size() < 2) {
-        cost = (a - b).norm();
-      } else {
-        cost = router_->pathLength(path);
+    if (ep_->enable_dynamic_adaptation_) {
+      if (router_->search(a, b) == multi_robot_router::Router_Node::REACH_END) {
+        auto path = router_->getPath();
+        if (path.size() < 2) {
+          cost = (a - b).norm();
+        } else {
+          cost = router_->pathLength(path);
+        }
+        path_cost_cache[key] = cost;
+        return true;
       }
-      path_cost_cache[key] = cost;
-      return true;
+    } else {
+      ViewNode::astar_->reset();
+      vector<Vector3d> path;
+      if (ViewNode::astar_->search(a, b) == Astar::REACH_END) {
+        path = ViewNode::astar_->getPath();
+        cost = ViewNode::astar_->pathLength(path);
+        path_cost_cache[key] = cost;
+        return true;
+      }
     }
     path_cost_cache[key] = std::numeric_limits<double>::infinity();
     return false;

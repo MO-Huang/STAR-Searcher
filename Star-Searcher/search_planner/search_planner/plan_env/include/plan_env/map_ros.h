@@ -33,6 +33,8 @@ public:
   void setMap(SDFMap *map);
   int getZLayer() {return occupancy_grid_z_layer_;};
   void init();
+  bool getCurrentRobotPos(Eigen::Vector3d &pos) const;
+  void requestTopologyRefresh();
   shared_ptr<multi_robot_router::Router_Node> router_;
 
 private:
@@ -47,8 +49,10 @@ private:
                            const sensor_msgs::ImageConstPtr &image_rect,
                            const nav_msgs::OdometryConstPtr &pose);
   void updateESDFCallback(const ros::TimerEvent & /*event*/);
+  void topologyTimerCallback(const ros::TimerEvent & /*event*/);
   void visCallback(const ros::TimerEvent & /*event*/);
   void resultCallback(const ros::TimerEvent &e);
+  void refreshTopologyGraph();
   void convertPointCloud2ToPclXYZL(const sensor_msgs::PointCloud2& msg, 
                             pcl::PointCloud<pcl::PointXYZL>& pcl_pc);
   void publishMapAll();
@@ -99,7 +103,7 @@ private:
       map_all_pub_, unknown_pub_, update_range_pub_, depth_pub_,
       map_object_pub_, under_observed_pub_, debug_pub_, test_pub_, 
       map_semantic_pub_, map_freshness_pub_, nav_msgs_occupancy_grid_pub_;
-  ros::Timer esdf_timer_, vis_timer_, result_timer_;
+  ros::Timer esdf_timer_, topology_timer_, vis_timer_, result_timer_;
 
   //semantic mode
   bool semantic_mode;
@@ -137,12 +141,15 @@ private:
   double visualization_truncate_height_, visualization_truncate_low_;
   bool show_esdf_time_, show_occ_time_;
   bool show_all_map_;
+  double topology_update_period_;
 
   // data
   // flags of map state
-  bool local_updated_, esdf_need_update_;
+  bool local_updated_, esdf_need_update_, topology_dirty_;
+  bool current_robot_pos_valid_;
   // input
   Eigen::Vector3d camera_pos_;
+  Eigen::Vector3d current_robot_pos_;
   Eigen::Quaterniond camera_q_;
   std::unique_ptr<cv::Mat> depth_image_;
   std::vector<Eigen::Vector3d> proj_points_;

@@ -10,8 +10,10 @@
   <arg name="box_max_y" value="20.0"/>
   <arg name="box_max_z" value="1.6"/>
 
-  <arg name="drone_num" value="3" />
+  <arg name="drone_num" value="4" />
   <arg name="enable_task_partition" default="true" />
+  <arg name="enable_multi_map" default="true" />
+  <arg name="enable_dynamic_adaptation" default="true" />
 
   <include file="$(find exploration_manager)/launch/single_search.launch">
     <arg name="drone_id" value="1"/>
@@ -30,6 +32,8 @@
     <arg name="box_max_z" value="$(arg box_max_z)"/>
     <arg name="drone_num" value="$(arg drone_num)"/>
     <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
+    <arg name="enable_multi_map" value="$(arg enable_multi_map)"/>
+    <arg name="enable_dynamic_adaptation" value="$(arg enable_dynamic_adaptation)"/>
   </include>
 
   <include file="$(find exploration_manager)/launch/single_search.launch">
@@ -49,6 +53,8 @@
       <arg name="box_max_z" value="$(arg box_max_z)"/>
       <arg name="drone_num" value="$(arg drone_num)"/>
       <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
+      <arg name="enable_multi_map" value="$(arg enable_multi_map)"/>
+      <arg name="enable_dynamic_adaptation" value="$(arg enable_dynamic_adaptation)"/>
   </include>
 
   <!-- <include file="$(find exploration_manager)/launch/single_search.launch">
@@ -68,12 +74,14 @@
       <arg name="box_max_z" value="$(arg box_max_z)"/>
       <arg name="drone_num" value="$(arg drone_num)"/>
       <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
-  </include>
+      <arg name="enable_multi_map" value="$(arg enable_multi_map)"/>
+      <arg name="enable_dynamic_adaptation" value="$(arg enable_dynamic_adaptation)"/>
+  </include> -->
 
-  <include file="$(find exploration_manager)/launch/single_search.launch">
+  <!-- <include file="$(find exploration_manager)/launch/single_search.launch">
       <arg name="drone_id" value="4"/>
-      <arg name="init_x"   value="8.0"/>
-      <arg name="init_y"   value="11.0"/>
+      <arg name="init_x"   value="11.0"/>
+      <arg name="init_y"   value="5.0"/>
       <arg name="init_z"   value="1.0"/> 
       <arg name="init_yaw" value="1.57"/>
       <arg name="map_size_x" value="$(arg map_size_x)"/>
@@ -87,6 +95,8 @@
       <arg name="box_max_z" value="$(arg box_max_z)"/>
       <arg name="drone_num" value="$(arg drone_num)"/>
       <arg name="enable_task_partition" value="$(arg enable_task_partition)"/>
+      <arg name="enable_multi_map" value="$(arg enable_multi_map)"/>
+      <arg name="enable_dynamic_adaptation" value="$(arg enable_dynamic_adaptation)"/>
   </include> -->
 
 </launch>

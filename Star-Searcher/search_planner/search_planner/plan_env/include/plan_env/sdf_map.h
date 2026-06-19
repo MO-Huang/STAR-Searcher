@@ -112,6 +112,7 @@ public:
   friend MultiMapManager;
 
 private:
+  bool multi_map_enabled_ = true;
   void clearAndInflateLocalMap();
   void clearAndInflateLocalMapSemantic();
   void inflatePoint(const Eigen::Vector3i &pt, int step,

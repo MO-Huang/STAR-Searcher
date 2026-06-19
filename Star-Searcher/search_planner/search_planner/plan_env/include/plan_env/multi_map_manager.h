@@ -60,8 +60,10 @@ private:
   void sendChunks(const int& chunk_drone_id, const int& to_drone_id, const vector<int>& idx_list);
   void getOccOfChunk(const vector<uint32_t>& adrs, vector<uint8_t>& occs);
   void getObsDistOfChunk(const vector<uint32_t>& adrs, vector<double>& obs_dists);
-  void insertChunkToMap(const MapChunk& chunk, const int& chunk_drone_id);
+  bool insertChunkToMap(const MapChunk& chunk, const int& chunk_drone_id);
   void adrToIndex(const uint32_t& adr, Eigen::Vector3i& idx);
+  bool shouldFilterSelfOccupiedVoxel(
+      const Eigen::Vector3d& voxel_pos, const Eigen::Vector3d& robot_pos) const;
 
   void stampTimerCallback(const ros::TimerEvent& e);
   void chunkTimerCallback(const ros::TimerEvent& e);
@@ -80,6 +82,10 @@ private:
   int drone_id_, map_num_;
   int vis_drone_id_;  // ONLY use for ground node!
   int chunk_size_;
+  bool self_occ_filter_enable_;
+  double self_occ_filter_radius_;
+  double self_occ_filter_z_min_;
+  double self_occ_filter_z_max_;
 
   SDFMap* map_;
   ros::NodeHandle node_;
